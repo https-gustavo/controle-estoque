@@ -31,7 +31,7 @@ function App() {
   }, []);
 
   return (
-    <Router basename={import.meta.env.BASE_URL}>
+    <Router basename={(import.meta.env.BASE_URL || '/').replace(/\/$/, '')}>
       <Routes>
         {/* Página de login */}
         <Route
@@ -82,6 +82,7 @@ function App() {
             )
           }
         />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
