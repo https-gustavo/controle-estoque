@@ -1,5 +1,8 @@
 name: Build and commit docs (GitHub Pages main/docs)
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ main ]
@@ -14,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -31,14 +34,16 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
-      - name: Commit docs folder to main
+      - name: Push docs to main
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if [ -n "$(git status --porcelain docs)" ]; then
             git add docs
             git commit -m "[skip ci] build docs"
-            git push
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:main
           else
             echo "No changes in docs, skipping commit."
           fi
