@@ -48,6 +48,15 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
 
+      - name: Add SPA 404 fallback (copy index.html to 404.html)
+        run: |
+          if [ -f "dist/index.html" ]; then
+            cp dist/index.html dist/404.html
+            echo "Created dist/404.html for GitHub Pages SPA fallback"
+          else
+            echo "dist/index.html not found; build may have failed" && exit 1
+          fi
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
