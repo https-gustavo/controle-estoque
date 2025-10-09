@@ -38,12 +38,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [ -n "$(git status --porcelain docs)" ]; then
-            git add docs
-            git commit -m "[skip ci] build docs"
-            git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:main
+          if [ -d docs ]; then
+            # If there are changes inside docs, commit and push; otherwise skip
+            if [ -n "$(git status --porcelain docs 2>/dev/null)" ]; then
+              git add -A docs
+              git commit -m "[skip ci] build docs"
+              git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:main
+            else
+              echo "No changes in docs, skipping commit."
+            fi
           else
-            echo "No changes in docs, skipping commit."
+            echo "docs directory not found after build. Skipping push." && exit 1
           fi
