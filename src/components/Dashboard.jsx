@@ -159,23 +159,61 @@ export default function Dashboard({ setUser }) {
 
   // Carrega e persiste configurações da empresa
   useEffect(() => {
+    const key = userId ? `companySettings:${userId}` : 'companySettings';
     try {
-      const saved = JSON.parse(localStorage.getItem('companySettings') || '{}');
+      const saved = JSON.parse(localStorage.getItem(key) || '{}');
       if (saved && (saved.name || saved.logo)) {
         setCompanySettings(prev => ({ ...prev, ...saved }));
       }
     } catch {}
-  }, []);
+    if (userId) {
+      (async () => {
+        try {
+          const { data, error } = await supabase
+            .from('store_settings')
+            .select('name, logo')
+            .eq('user_id', userId)
+            .single();
+          if (!error && data) {
+            setCompanySettings(prev => ({
+              ...prev,
+              name: typeof data.name !== 'undefined' && data.name !== null ? data.name : prev.name,
+              logo: typeof data.logo !== 'undefined' && data.logo !== null ? data.logo : prev.logo,
+            }));
+          }
+        } catch (err) {
+          console.warn('Falha ao carregar store_settings do Supabase:', err?.message || err);
+        }
+      })();
+    }
+  }, [userId]);
 
   const saveCompanySettings = async () => {
     try {
-      localStorage.setItem('companySettings', JSON.stringify(companySettings));
+      const key = userId ? `companySettings:${userId}` : 'companySettings';
+      localStorage.setItem(key, JSON.stringify(companySettings));
+      // Persistir por usuário no Supabase (tabela: store_settings)
+      if (userId) {
+        const row = {
+          user_id: userId,
+          name: companySettings.name || null,
+          logo: companySettings.logo || null,
+          updated_at: new Date().toISOString(),
+        };
+        try {
+          const { error } = await supabase
+            .from('store_settings')
+            .upsert([row], { onConflict: 'user_id' });
+          if (error) throw error;
+        } catch (err) {
+          console.warn('Falha ao salvar store_settings no Supabase:', err?.message || err);
+        }
+      }
       setToast({ type: 'success', message: 'Configurações salvas com sucesso.' });
     } catch (err) {
       setToast({ type: 'error', message: 'Falha ao salvar configurações.' });
     }
   };
-
   const handleLogoFileChange = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
@@ -189,6 +227,16 @@ export default function Dashboard({ setUser }) {
       const publicUrl = pub?.publicUrl || '';
       if (publicUrl) {
         setCompanySettings(prev => ({ ...prev, logo: publicUrl }));
+        // Persistir logo por usuário
+        if (userId) {
+          try {
+            await supabase
+              .from('store_settings')
+              .upsert([{ user_id: userId, logo: publicUrl, name: companySettings.name || null, updated_at: new Date().toISOString() }], { onConflict: 'user_id' });
+          } catch (err) {
+            console.warn('Falha ao salvar logo em store_settings:', err?.message || err);
+          }
+        }
         setToast({ type: 'success', message: 'Logo enviada para armazenamento e aplicada.' });
         return;
       }
@@ -199,6 +247,13 @@ export default function Dashboard({ setUser }) {
       reader.onload = () => {
         const dataUrl = reader.result;
         setCompanySettings(prev => ({ ...prev, logo: dataUrl }));
+        // Persistir logo base64 por usuário
+        if (userId) {
+          supabase
+            .from('store_settings')
+            .upsert([{ user_id: userId, logo: dataUrl, name: companySettings.name || null, updated_at: new Date().toISOString() }], { onConflict: 'user_id' })
+            .catch((err) => console.warn('Falha ao salvar logo base64 em store_settings:', err?.message || err));
+        }
         setToast({ type: 'success', message: 'Logo carregada localmente e aplicada.' });
       };
       reader.onerror = () => setToast({ type: 'error', message: 'Falha ao ler imagem do computador.' });
@@ -1174,7 +1229,7 @@ export default function Dashboard({ setUser }) {
 
     // Dividir entre existentes e novos usando lista em memória
     const existingByBarcode = new Map(products.map(p => [String(p.barcode), p]));
-    const toInsert = [];
+    let toInsert = [];
     const toUpdate = [];
     for (const product of validConsolidated) {
       const entry = {
@@ -1222,6 +1277,53 @@ export default function Dashboard({ setUser }) {
 
     // Inserir novos (com fallback para last_purchase_value)
     if (toInsert.length > 0) {
+      // Verifica duplicidade no banco e transforma em update quando necessário
+      try {
+        const barcodes = toInsert.map(p => String(p.barcode));
+        const { data: existDb, error: existErr } = await supabase
+          .from('products')
+          .select('id, barcode, quantity, cost_price, last_purchase_value, sale_price')
+          .in('barcode', barcodes)
+          .eq('user_id', userId);
+        if (!existErr && existDb && existDb.length) {
+          const exMap = new Map(existDb.map(r => [String(r.barcode), r]));
+          const stillInsert = [];
+          for (const p of toInsert) {
+            const ex = exMap.get(String(p.barcode));
+            if (ex) {
+              const newQty = Number(ex.quantity || 0) + p.quantity;
+              let updatePayload = { quantity: newQty };
+              if (!isNaN(p.cost_price)) updatePayload.cost_price = p.cost_price;
+              if (!isNaN(p.sale_price)) updatePayload.sale_price = p.sale_price;
+              const { error: upErr2 } = await supabase
+                .from('products')
+                .update(updatePayload)
+                .eq('id', ex.id)
+                .eq('user_id', userId);
+              if (upErr2) {
+                if (/cost_price/i.test(upErr2.message)) {
+                  updatePayload = { quantity: newQty };
+                  if (!isNaN(p.cost_price)) updatePayload.last_purchase_value = p.cost_price;
+                  if (!isNaN(p.sale_price)) updatePayload.sale_price = p.sale_price;
+                  const { error: legacyUpErr2 } = await supabase
+                    .from('products')
+                    .update(updatePayload)
+                    .eq('id', ex.id)
+                    .eq('user_id', userId);
+                  if (legacyUpErr2) updateErrors.push(legacyUpErr2.message);
+                } else {
+                  updateErrors.push(upErr2.message);
+                }
+              }
+            } else {
+              stillInsert.push(p);
+            }
+          }
+          toInsert = stillInsert;
+        }
+      } catch (e) {
+        console.warn('Falha ao verificar duplicidade antes do insert:', e?.message || e);
+      }
       const toInsertWithUser = toInsert.map(p => ({ ...p, user_id: userId }));
       const { error } = await supabase
         .from('products')
