@@ -1,0 +1,355 @@
+/* Variáveis e reset para consistência visual */
+:root {
+  --primary-color: #4f46e5;
+  --primary-hover: #4338ca;
+  --secondary-color: #6b7280;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --border-color: #e5e7eb;
+  --radius: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Fundo com gradientes suaves e elementos decorativos */
+.login-background {
+  min-height: 100vh;
+  height: 100vh; /* força centralização vertical exata */
+  background: linear-gradient(180deg, #fafafa 0%, #f4f5f7 100%);
+  position: relative;
+  overflow: hidden;
+  /* Centraliza o card dentro do fundo */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 3.6vw, 28px);
+}
+
+/* Remove blobs decorativos para um visual mais clean */
+.login-background::before,
+.login-background::after {
+  display: none;
+}
+
+.login-background::before {
+  background: linear-gradient(135deg, var(--primary-color), #60a5fa);
+  top: -100px;
+  left: -80px;
+}
+
+.login-background::after {
+  background: linear-gradient(135deg, #a78bfa, var(--secondary-color));
+  bottom: -120px;
+  right: -120px;
+  animation-delay: 4s;
+}
+
+@keyframes floatBlob {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(20px, -10px) scale(1.05); }
+}
+
+/* Card com leve efeito glass e animação sutil */
+/* Card clean e centralizado */
+.login-card {
+  background: #ffffff;
+  backdrop-filter: none;
+  border: 1px solid #eef2f7; /* borda mais clara para reduzir “box” */
+  border-radius: var(--radius);
+  box-shadow: none; /* remove sombra para acabar com o cinza ao redor */
+  max-width: 460px;
+  margin: 0 auto;
+  animation: none;
+  position: relative; /* permite barra de destaque */
+}
+
+/* Barra de destaque no topo do card */
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary-color), #60a5fa);
+}
+
+/* Centraliza o conteúdo do Login na tela */
+.login-container {
+  min-height: 100vh;
+  height: 100vh; /* força centralização vertical exata */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 3.6vw, 28px);
+}
+
+/* Grid em duas colunas no desktop para um visual mais desenvolvido */
+.login-card.grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 40%) 1fr;
+  overflow: hidden;
+}
+
+@media (max-width: 860px) {
+  .login-card.grid {
+    display: block;
+    grid-template-columns: 1fr;
+  }
+}
+
+/* HERO lateral com gradiente e padrões decorativos */
+.login-hero {
+  display: block;
+  position: relative;
+  min-height: 100%;
+  background: linear-gradient(135deg, var(--primary-color), #60a5fa);
+  color: #fff;
+}
+
+.login-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(900px circle at 15% 20%, rgba(255,255,255,0.16), transparent 40%),
+              radial-gradient(700px circle at 80% 70%, rgba(255,255,255,0.14), transparent 42%);
+  pointer-events: none;
+}
+
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(800px circle at 20% 20%, rgba(255,255,255,0.15), transparent 40%),
+    radial-gradient(600px circle at 80% 60%, rgba(255,255,255,0.12), transparent 42%);
+}
+
+.hero-content {
+  position: relative;
+  padding: clamp(24px, 4.2vw, 40px);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hero-highlights {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.hero-highlights li i {
+  margin-right: 8px;
+}
+
+/* Conteúdo (form) */
+/* Ajusta o conteúdo para um espaçamento mais leve */
+.login-content {
+  padding: clamp(22px, 3.8vw, 40px);
+}
+
+@keyframes cardFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* Cabeçalho do card */
+.login-header {
+  text-align: center;
+}
+
+.login-logo .logo-icon {
+  transition: transform 0.3s ease;
+}
+
+.login-logo:hover .logo-icon {
+  transform: rotate(3deg) scale(1.03);
+}
+
+.login-subtitle {
+  color: var(--text-secondary);
+}
+
+/* Em tema hero, sobrescreve para branco */
+.login-hero .login-subtitle {
+  color: rgba(255,255,255,0.9);
+}
+
+/* Separador sutil entre hero e conteúdo */
+.login-content {
+  background: #fff;
+}
+
+/* Formulário e campos */
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.form-group { margin-bottom: 14px; }
+
+.form-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db; /* mais claro e elegante */
+  background-color: #ffffff; /* remove caixas cinzas */
+  color: var(--text-primary);
+  outline: none;
+  box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, transform 0.08s ease;
+}
+
+.input-wrapper { position: relative; }
+.input-wrapper .form-input { padding-left: 40px; }
+
+.form-input::placeholder {
+  color: #a1a1aa;
+}
+
+.form-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  background-color: #ffffff;
+}
+
+.input-icon {
+  color: #9ca3af;
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+}
+
+.toggle-password {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 6px;
+}
+
+.toggle-password:hover {
+  color: var(--primary-color);
+}
+
+/* Botão principal */
+/* Botão menos pesado visualmente */
+.login-btn {
+  border-radius: 10px;
+  box-shadow: 0 8px 16px rgba(79, 70, 229, 0.12);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+}
+
+.login-btn:hover:not(:disabled) {
+  filter: saturate(108%);
+  transform: translateY(-1px);
+}
+
+/* Mensagens de feedback */
+.auth-message {
+  border-radius: 10px;
+}
+
+/* Link de alternância */
+.auth-switch {
+  color: var(--text-secondary);
+}
+
+.auth-switch span {
+  color: var(--primary-color);
+}
+
+@media (max-width: 480px) {
+  .login-card { padding: 24px; }
+}
+
+/* ==========================================
+   Overrides para garantir que as mudanças apareçam
+   - Reforça especificidade e adiciona estilos base do botão
+   - Corrige possíveis heranças de outros CSS (ex.: Dashboard.css)
+========================================== */
+
+/* Inputs: força fundo branco e borda clara */
+.login-content .form-input,
+.input-wrapper .form-input {
+  background-color: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+  color: var(--text-primary) !important;
+}
+
+.login-content .form-input:hover {
+  border-color: #cbd5e1 !important;
+}
+
+.login-content .form-input:focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12) !important;
+  background-color: #ffffff !important;
+}
+
+/* Ícones dos inputs: alinhamento garantido */
+.login-content .input-icon {
+  left: 14px !important;
+  color: #9ca3af !important;
+}
+
+/* Botão: adiciona base para .btn-primary sem depender de outros arquivos */
+.btn-primary {
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Botão específico do login já ganha gradiente acima */
+.login-btn:hover:not(:disabled) {
+  transform: translateY(-1px) !important;
+}
+
+.login-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Mensagens de feedback: borda sutil e radius consistente */
+.auth-message {
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+}
+
+/* ==========================
+   Remove os “boxes” cinza
+   (fundos dos wrappers)
+========================== */
+.login-container {
+  background: transparent !important;
+}
+
+.login-background {
+  background: transparent !important;
+}

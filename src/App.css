@@ -1,42 +1,117 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* Reset básico */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  background-color: #ffffff; /* usa o mesmo tom base do tema */
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* Centraliza tudo na tela */
+.App {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;  /* ocupa a altura inteira da tela */
+  width: 100%;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+/* Wrapper neutro para Login/Signup: deixa o layout do componente assumir */
+.auth-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  text-align: initial;
+}
+
+/* Títulos */
+/* Oculta o título antigo para evitar duplicidade com o card de login */
+.auth-wrapper h1 { display: none; }
+
+/* Container interno */
+.auth-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.auth-container h2 {
+  margin-bottom: 20px;
+  font-size: 20px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+/* Inputs e botões */
+.auth-input,
+.auth-button {
+  width: 100%;
+  padding: 12px 15px;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+.auth-input {
+  border: 1px solid #cbd5e1;
+  background-color: #f9fafb;
+  color: #1f2937;
+}
+
+.auth-button {
+  background-color: #4f46e5;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.auth-button:hover {
+  background-color: #4338ca;
+}
+
+/* Link de troca entre login e cadastro */
+.auth-switch {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #4f46e5;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Mensagem de erro ou sucesso */
+.auth-message {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #e11d48;
+}
+
+/* Responsividade */
+@media (max-width: 480px) {
+  .auth-wrapper {
+    padding: 30px 20px;
   }
-  to {
-    transform: rotate(360deg);
+
+  .auth-wrapper h1 {
+    font-size: 20px;
   }
-}
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+  .auth-container h2 {
+    font-size: 18px;
   }
-}
 
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
+  .auth-input,
+  .auth-button {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
 }
