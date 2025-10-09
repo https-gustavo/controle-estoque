@@ -6,6 +6,6 @@ export default defineConfig({
   plugins: [react()],
   base: '/controle-estoque/',
   build: {
-    outDir: 'docs'
+    outDir: 'dist'
   }
 })
