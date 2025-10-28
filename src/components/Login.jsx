@@ -3,7 +3,12 @@ import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
 
+/**
+ * Componente de login com interface moderna
+ * Inclui validação, toggle de senha e navegação automática
+ */
 export default function Login({ switchToSignup, setUser }) {
+  // Estados do formulário de login
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -11,6 +16,10 @@ export default function Login({ switchToSignup, setUser }) {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  /**
+   * Processa o login do usuário via Supabase
+   * Redireciona para dashboard em caso de sucesso
+   */
   const handleLogin = async () => {
     setLoading(true);
     setMessage('');
@@ -28,6 +37,7 @@ export default function Login({ switchToSignup, setUser }) {
     setLoading(false);
   };
 
+  // Permite login com Enter
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       handleLogin();
@@ -46,11 +56,11 @@ export default function Login({ switchToSignup, setUser }) {
                   <span className="logo-icon"><i className="fas fa-box"></i></span>
                   <h1>Estoque Pro</h1>
                 </div>
-                <p className="login-subtitle">Controle seu estoque com rapidez e precisão.</p>
+                <p className="login-subtitle">Gerencie seu estoque com eficiência e controle total.</p>
                 <ul className="hero-highlights">
-                  <li><i className="fas fa-check"></i> Dashboard intuitivo</li>
-                  <li><i className="fas fa-check"></i> Produtos e movimentações</li>
-                  <li><i className="fas fa-check"></i> Acesso seguro</li>
+                  <li><i className="fas fa-check"></i> Painel de controle intuitivo</li>
+                  <li><i className="fas fa-check"></i> Gestão completa de produtos</li>
+                  <li><i className="fas fa-check"></i> Sistema seguro e confiável</li>
                 </ul>
               </div>
             </div>
@@ -59,18 +69,18 @@ export default function Login({ switchToSignup, setUser }) {
           {/* FORMULÁRIO */}
           <div className="login-content">
             <div className="login-header">
-              <p className="login-subtitle">Faça login para acessar seu sistema</p>
+              <p className="login-subtitle">Acesse sua conta para continuar</p>
             </div>
 
             <div className="login-form">
               <div className="form-group">
-                <label htmlFor="email">Email</label>
+                <label htmlFor="email">E-mail</label>
                 <div className="input-wrapper">
                   <i className="fas fa-envelope input-icon"></i>
                   <input
                     id="email"
                     type="email"
-                    placeholder="Digite seu email"
+                    placeholder="Digite seu e-mail"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     onKeyPress={handleKeyPress}
@@ -123,7 +133,7 @@ export default function Login({ switchToSignup, setUser }) {
 
               <div className="login-footer">
                 <p className="auth-switch" onClick={switchToSignup}>
-                  Não tem conta? <span>Cadastrar-se</span>
+                  Ainda não tem conta? <span>Criar conta</span>
                 </p>
               </div>
 

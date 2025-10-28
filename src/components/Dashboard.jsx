@@ -1,39 +1,74 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import SalesHistory from './SalesHistory';
 import './Dashboard.css';
 import { useNavigate } from 'react-router-dom';
 
+/**
+ * Dashboard principal do sistema de controle de estoque
+ * Gerencia produtos, vendas, histórico e configurações da loja
+ */
 export default function Dashboard({ setUser }) {
+  // Estados principais do sistema
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
-  const [stockFilter, setStockFilter] = useState('all'); // all | low | in
+  const [stockFilter, setStockFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('');
+  
+  // Controle de modais
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [showQuantityModal, setShowQuantityModal] = useState(false);
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [showQuickEntryModal, setShowQuickEntryModal] = useState(false);
+  const [showSaleDetailsModal, setShowSaleDetailsModal] = useState(false);
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  
+  // Estados para edição de produtos
+  const [selectedSaleGroup, setSelectedSaleGroup] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [customValue, setCustomValue] = useState('');
-  // Removido canal de venda para simplificar UI
+  const [editCostPrice, setEditCostPrice] = useState('');
+  const [editSalePrice, setEditSalePrice] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
-  // Novo fluxo de vendas (carrinho rápido)
-  const [salesCart, setSalesCart] = useState([]); // {id, barcode, name, unit_price, quantity}
-  const [saleDiscount, setSaleDiscount] = useState(''); // valor em moeda
+  
+  // Carrinho de vendas
+  const [salesCart, setSalesCart] = useState([]);
+  const [saleDiscount, setSaleDiscount] = useState('');
   const [saleSearch, setSaleSearch] = useState('');
   const [saleBarcode, setSaleBarcode] = useState('');
   const [saleSuggestions, setSaleSuggestions] = useState([]);
   const [saleSuggestionIndex, setSaleSuggestionIndex] = useState(-1);
+  
+  // Histórico de vendas
   const [salesHistoryGroups, setSalesHistoryGroups] = useState([]);
+  const [historyFilter, setHistoryFilter] = useState('');
+  const [historyDateFilter, setHistoryDateFilter] = useState('all');
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPageSize, setHistoryPageSize] = useState(10);
+  
+  // Estatísticas e métricas
   const [totalSales, setTotalSales] = useState(0);
   const [totalProducts, setTotalProducts] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
+  
+  // Interface e navegação
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [userId, setUserId] = useState(null);
+  
+  // Configurações de tema
+  const [darkMode, setDarkMode] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('darkMode') || 'false');
+      document.documentElement.setAttribute('data-theme', saved ? 'dark' : 'light');
+      return saved;
+    } catch {
+      document.documentElement.setAttribute('data-theme', 'light');
+      return false;
+    }
+  });
   
   // Configurações da empresa
   const [companySettings, setCompanySettings] = useState({
@@ -41,27 +76,27 @@ export default function Dashboard({ setUser }) {
     logo: ''
   });
 
-  // Calculadora de custos e preço de venda
+  // Calculadora de custos
   const [costBase, setCostBase] = useState('');
   const [freight, setFreight] = useState('');
   const [packaging, setPackaging] = useState('');
   const [otherCosts, setOtherCosts] = useState('');
+  const [otherCostsPercent, setOtherCostsPercent] = useState('');
   const [icms, setIcms] = useState('');
   const [ipi, setIpi] = useState('');
   const [pis, setPis] = useState('');
   const [cofins, setCofins] = useState('');
   const [iss, setIss] = useState('');
-  const [calcMode, setCalcMode] = useState('margin'); // 'margin' | 'reverse' (markup removido)
-  const [targetMargin, setTargetMargin] = useState(''); // % sobre preço
-  const [salePriceInput, setSalePriceInput] = useState(''); // usado no modo reverse
-  // Modo simples e seleção de produto para facilitar o uso
-  const [calcSimpleMode, setCalcSimpleMode] = useState(true); // quando true, usa impostos totais e esconde detalhes
-  const [taxTotal, setTaxTotal] = useState(''); // impostos totais (%) no modo simples
-  const [calcProductId, setCalcProductId] = useState(''); // produto selecionado para preencher custo
-  const [calcSearch, setCalcSearch] = useState(''); // texto digitado (código ou nome)
+  const [calcMode, setCalcMode] = useState('margin');
+  const [targetMargin, setTargetMargin] = useState('');
+  const [salePriceInput, setSalePriceInput] = useState('');
+  const [calcSimpleMode, setCalcSimpleMode] = useState(true);
+  const [taxTotal, setTaxTotal] = useState('');
+  const [calcProductId, setCalcProductId] = useState('');
+  const [calcSearch, setCalcSearch] = useState('');
   const [calcSuggestOpen, setCalcSuggestOpen] = useState(false);
-  const [salePriceEdit, setSalePriceEdit] = useState(''); // preço de venda editável do produto selecionado
-  const [savingPrice, setSavingPrice] = useState(false); // estado de salvamento
+  const [salePriceEdit, setSalePriceEdit] = useState('');
+  const [savingPrice, setSavingPrice] = useState(false);
 
   const toNum = (v) => {
     const n = parseFloat(String(v ?? '').replace(',', '.'));
@@ -69,10 +104,12 @@ export default function Dashboard({ setUser }) {
   };
 
   const baseCosts = toNum(costBase) + toNum(freight) + toNum(packaging) + toNum(otherCosts);
+  const otherCostsPercentValue = baseCosts * (toNum(otherCostsPercent) / 100);
+  const totalBaseCosts = baseCosts + otherCostsPercentValue;
   const taxRate = calcSimpleMode
     ? (toNum(taxTotal) / 100)
     : (toNum(icms) + toNum(ipi) + toNum(pis) + toNum(cofins) + toNum(iss)) / 100;
-  const costWithTaxes = baseCosts * (1 + taxRate);
+  const costWithTaxes = totalBaseCosts * (1 + taxRate);
   const computedByMargin = targetMargin ? (costWithTaxes / (1 - toNum(targetMargin) / 100)) : costWithTaxes;
   const effectiveSalePrice = calcMode === 'margin' ? computedByMargin
                            : toNum(salePriceInput);
@@ -80,11 +117,10 @@ export default function Dashboard({ setUser }) {
     ? ((effectiveSalePrice - costWithTaxes) / effectiveSalePrice) * 100
     : 0;
 
-  // Seleção de produto para preencher custo base automaticamente
+  // Produto selecionado na calculadora
   const selectedCalcProduct = products.find(p => String(p.id) === String(calcProductId));
   const useSelectedProductCost = () => {
     if (!selectedCalcProduct) return;
-    // tenta usar cost_price; se ausente, usa last_purchase_value; senão, sale_price como fallback (menos ideal)
     const cost = selectedCalcProduct.cost_price ?? selectedCalcProduct.last_purchase_value ?? selectedCalcProduct.sale_price ?? 0;
     setCostBase(String(cost ?? ''));
   };
@@ -112,7 +148,7 @@ export default function Dashboard({ setUser }) {
     }
   };
 
-  // Sugestões para busca por código ou nome
+  // Busca de produtos para calculadora
   const norm = (v) => String(v ?? '').toLowerCase();
   const calcMatches = calcSearch.trim()
     ? products.filter(p => {
@@ -132,6 +168,32 @@ export default function Dashboard({ setUser }) {
   const [quickEntry, setQuickEntry] = useState({ barcode: '', name: '', quantity: '', cost_price: '', markup: '', sale_price: '' });
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  
+  // Estados de carregamento
+  const [loading, setLoading] = useState({
+    products: false,
+    sales: false,
+    batch: false,
+    entry: false,
+    delete: false
+  });
+
+  // Estados para confirmação visual
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [confirmTitle, setConfirmTitle] = useState('');
+
+  // Estados para filtros avançados
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    category: '',
+    minPrice: '',
+    maxPrice: '',
+    stockStatus: '',
+    minStock: '',
+    maxStock: ''
+  });
 
   // Utilidades para destaque de texto nas sugestões
   const escapeRegex = (str) => {
@@ -166,6 +228,8 @@ export default function Dashboard({ setUser }) {
         setCompanySettings(prev => ({ ...prev, ...saved }));
       }
     } catch {}
+    
+    // Sincroniza com o Supabase quando há usuário logado
     if (userId) {
       (async () => {
         try {
@@ -173,7 +237,7 @@ export default function Dashboard({ setUser }) {
             .from('store_settings')
             .select('name, logo')
             .eq('user_id', userId)
-            .single();
+            .maybeSingle(); // Usar maybeSingle() em vez de single() para evitar erro quando não há dados
           if (!error && data) {
             setCompanySettings(prev => ({
               ...prev,
@@ -214,10 +278,80 @@ export default function Dashboard({ setUser }) {
       setToast({ type: 'error', message: 'Falha ao salvar configurações.' });
     }
   };
+
+  /**
+   * Aplica os preços calculados na calculadora ao produto selecionado
+   * Atualiza o custo e preço de venda no banco de dados
+   */
+  const handleApplyCalculatedPrices = async () => {
+    if (!selectedCalcProduct || costWithTaxes <= 0 || effectiveSalePrice <= 0) {
+      showToast('Erro: Produto não selecionado ou valores inválidos.', 'error');
+      return;
+    }
+    
+    // Primeiro tenta com cost_price, se falhar usa last_purchase_value (compatibilidade)
+    const updateData = {
+      cost_price: costWithTaxes,
+      sale_price: effectiveSalePrice
+    };
+    
+    const { error } = await supabase
+      .from('products')
+      .update(updateData)
+      .eq('id', selectedCalcProduct.id)
+      .eq('user_id', userId);
+      
+    if (error) {
+      // Se der erro com cost_price, tenta com last_purchase_value (schema legado)
+      if (error.message.includes('cost_price')) {
+        const legacyUpdateData = {
+          last_purchase_value: costWithTaxes,
+          sale_price: effectiveSalePrice
+        };
+        
+        const { error: legacyError } = await supabase
+          .from('products')
+          .update(legacyUpdateData)
+          .eq('id', selectedCalcProduct.id)
+          .eq('user_id', userId);
+          
+        if (legacyError) {
+          console.error('Erro ao aplicar preços calculados (legacy):', legacyError);
+          showToast('Erro ao aplicar preços calculados.', 'error');
+          return;
+        }
+      } else {
+        console.error('Erro ao aplicar preços calculados:', error);
+        showToast('Erro ao aplicar preços calculados.', 'error');
+        return;
+      }
+    }
+    
+    // Atualizar a lista de produtos
+    fetchProducts();
+    showToast(`Preços aplicados com sucesso ao produto "${selectedCalcProduct.name}"!`, 'success');
+    
+    // Limpar calculadora
+    setCostBase('');
+    setFreight('');
+    setPackaging('');
+    setOtherCosts('');
+    setOtherCostsPercent('');
+    setIcms('');
+    setIpi('');
+    setPis('');
+    setCofins('');
+    setIss('');
+    setTaxTotal('');
+    setTargetMargin('');
+    setSalePriceInput('');
+    setCalcProductId('');
+    setSelectedCalcProduct(null);
+  };
+
   const handleLogoFileChange = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    // Tenta enviar para Supabase Storage (bucket: 'logos'). Se falhar, usa base64 local.
     const ext = file.name.split('.').pop();
     const fileName = `logo_${Date.now()}.${ext || 'png'}`;
     try {
@@ -227,7 +361,6 @@ export default function Dashboard({ setUser }) {
       const publicUrl = pub?.publicUrl || '';
       if (publicUrl) {
         setCompanySettings(prev => ({ ...prev, logo: publicUrl }));
-        // Persistir logo por usuário
         if (userId) {
           try {
             await supabase
@@ -242,12 +375,10 @@ export default function Dashboard({ setUser }) {
       }
       throw new Error('Sem URL pública');
     } catch (_err) {
-      // Fallback: ler como DataURL e armazenar localmente
       const reader = new FileReader();
       reader.onload = () => {
         const dataUrl = reader.result;
         setCompanySettings(prev => ({ ...prev, logo: dataUrl }));
-        // Persistir logo base64 por usuário
         if (userId) {
           supabase
             .from('store_settings')
@@ -267,6 +398,23 @@ export default function Dashboard({ setUser }) {
   }, [simpleMode]);
 
   useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
+
+  const toggleDarkMode = () => {
+    console.log('Toggle dark mode clicked');
+    setDarkMode(prev => {
+      const newMode = !prev;
+      console.log('New mode:', newMode);
+      document.documentElement.setAttribute('data-theme', newMode ? 'dark' : 'light');
+      console.log('Theme applied:', document.documentElement.getAttribute('data-theme'));
+      localStorage.setItem('darkMode', JSON.stringify(newMode));
+      return newMode;
+    });
+  };
+
+  useEffect(() => {
     if (showEntryModal) {
       const dm = localStorage.getItem('defaultMarkup');
       if (dm && (quickEntry.markup === '' || typeof quickEntry.markup === 'undefined')) {
@@ -281,7 +429,6 @@ export default function Dashboard({ setUser }) {
     }
   }, [quickEntry.markup]);
 
-  // Mantém userId sincronizado com a sessão do Supabase
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
@@ -306,6 +453,106 @@ export default function Dashboard({ setUser }) {
     }
   }, [userId]);
 
+  // Atalhos de teclado para navegação rápida
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Verificar se não está em um input/textarea
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return;
+      }
+
+      // Atalhos com Ctrl
+      if (e.ctrlKey) {
+        switch (e.key.toLowerCase()) {
+          case 'n': // Ctrl+N - Nova entrada
+            e.preventDefault();
+            setShowEntryModal(true);
+            break;
+          case 'v': // Ctrl+V - Nova venda
+            e.preventDefault();
+            setShowSaleModal(true);
+            break;
+          case 'b': // Ctrl+B - Entrada em lote
+            e.preventDefault();
+            setShowBatchModal(true);
+            break;
+          case 'q': // Ctrl+Q - Entrada rápida
+            e.preventDefault();
+            setShowQuickEntryModal(true);
+            break;
+          case 'f': // Ctrl+F - Focar na busca
+            e.preventDefault();
+            const searchInput = document.querySelector('input[placeholder*="Buscar"]');
+            if (searchInput) searchInput.focus();
+            break;
+          case 'h': // Ctrl+H - Histórico de vendas
+            e.preventDefault();
+            setActiveTab('history');
+            break;
+          case 'd': // Ctrl+D - Dashboard
+            e.preventDefault();
+            setActiveTab('dashboard');
+            break;
+          case 'c': // Ctrl+C - Calculadora
+            e.preventDefault();
+            setActiveTab('calculator');
+            break;
+          case 't': // Ctrl+T - Alternar tema
+            e.preventDefault();
+            toggleDarkMode();
+            break;
+        }
+      }
+
+      // Atalhos sem modificadores
+      switch (e.key) {
+        case 'Escape': // ESC - Fechar modais
+          e.preventDefault();
+          setShowBatchModal(false);
+          setShowEntryModal(false);
+          setShowQuantityModal(false);
+          setShowSaleModal(false);
+          setShowQuickEntryModal(false);
+          setShowSaleDetailsModal(false);
+          setShowPriceModal(false);
+          break;
+        case 'F1': // F1 - Ajuda (mostrar atalhos)
+          e.preventDefault();
+          showKeyboardShortcuts();
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Função para mostrar atalhos de teclado
+  const showKeyboardShortcuts = () => {
+    const shortcuts = `🎯 ATALHOS DE TECLADO:
+
+📦 PRODUTOS:
+• Ctrl+N - Nova entrada de produto
+• Ctrl+Q - Entrada rápida
+• Ctrl+B - Entrada em lote
+
+💰 VENDAS:
+• Ctrl+V - Nova venda
+• Ctrl+H - Histórico de vendas
+
+🔍 NAVEGAÇÃO:
+ • Ctrl+F - Focar na busca
+ • Ctrl+D - Dashboard
+ • Ctrl+C - Calculadora
+ • Ctrl+T - Alternar tema
+
+ ⚡ GERAL:
+ • ESC - Fechar modais
+ • F1 - Mostrar atalhos`;
+    
+    alert(shortcuts);
+  };
+
   useEffect(() => {
     if (products.length > 0) {
       const filtered = products.filter(product => {
@@ -321,7 +568,21 @@ export default function Dashboard({ setUser }) {
           stockFilter === 'low' ? product.quantity < 10 :
           product.quantity >= 10;
         const matchesCategory = categoryFilter === '' ? true : String(product.category_id || '').includes(categoryFilter);
-        return matchesQuery && matchesStock && matchesCategory;
+        
+        // Filtros avançados
+        const matchesAdvancedFilters = !showAdvancedFilters || (
+          (filters.minPrice === '' || product.sale_price >= parseFloat(filters.minPrice)) &&
+          (filters.maxPrice === '' || product.sale_price <= parseFloat(filters.maxPrice)) &&
+          (filters.minStock === '' || product.quantity >= parseInt(filters.minStock)) &&
+          (filters.maxStock === '' || product.quantity <= parseInt(filters.maxStock)) &&
+          (filters.stockStatus === '' || 
+            (filters.stockStatus === 'low' && product.quantity < 10) ||
+            (filters.stockStatus === 'normal' && product.quantity >= 10 && product.quantity < 50) ||
+            (filters.stockStatus === 'high' && product.quantity >= 50)
+          )
+        );
+        
+        return matchesQuery && matchesStock && matchesCategory && matchesAdvancedFilters;
       });
       setFilteredProducts(filtered);
       
@@ -329,40 +590,49 @@ export default function Dashboard({ setUser }) {
       setTotalProducts(products.length);
       setLowStockCount(products.filter(p => p.quantity < 10).length);
     }
-  }, [products, searchTerm]);
+  }, [products, searchTerm, filters, showAdvancedFilters]);
 
+  /**
+   * Carrega todos os produtos do usuário e calcula estatísticas
+   * Inclui fallback para problemas de ordenação no Supabase
+   */
   const fetchProducts = async () => {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('user_id', userId)
-      .order('name');
-    
-    if (error) {
-      console.error('Erro ao buscar produtos:', error);
-      // Se ordenar por "name" falhar, busca sem ordenação
-      if (/name/i.test(error.message || '')) {
-        const { data: dataNoOrder, error: errNoOrder } = await supabase
-          .from('products')
-          .select('*')
-          .eq('user_id', userId);
-        if (!errNoOrder) {
-          setProducts(dataNoOrder || []);
-        }
-      }
-    } else {
-      setProducts(data || []);
-    }
-    
-    // Buscar total de vendas
-    const { data: salesData, error: salesError } = await supabase
-      .from('sales')
-      .select('total')
-      .eq('user_id', userId);
+    setLoading(prev => ({ ...prev, products: true }));
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('user_id', userId)
+        .order('name');
       
-    if (!salesError && salesData) {
-      const total = salesData.reduce((sum, sale) => sum + sale.total, 0);
-      setTotalSales(total);
+      if (error) {
+        console.error('Erro ao buscar produtos:', error);
+        // Se ordenar por "name" falhar, busca sem ordenação
+        if (/name/i.test(error.message || '')) {
+          const { data: dataNoOrder, error: errNoOrder } = await supabase
+            .from('products')
+            .select('*')
+            .eq('user_id', userId);
+          if (!errNoOrder) {
+            setProducts(dataNoOrder || []);
+          }
+        }
+      } else {
+        setProducts(data || []);
+      }
+      
+      // Calcula o total de vendas para as estatísticas do dashboard
+      const { data: salesData, error: salesError } = await supabase
+        .from('sales')
+        .select('total')
+        .eq('user_id', userId);
+        
+      if (!salesError && salesData) {
+        const total = salesData.reduce((sum, sale) => sum + sale.total, 0);
+        setTotalSales(total);
+      }
+    } finally {
+      setLoading(prev => ({ ...prev, products: false }));
     }
   };
 
@@ -401,24 +671,72 @@ export default function Dashboard({ setUser }) {
     }
   };
 
-  const handleDeleteProduct = async (productId) => {
-    if (!productId || !userId) return;
-    const confirmed = window.confirm('Excluir este produto? Esta ação não pode ser desfeita.');
-    if (!confirmed) return;
-
+  const handleUpdatePrices = async () => {
+    if (!selectedProduct) return;
+    
+    // Preparar objeto de atualização apenas com campos preenchidos
+    const updateData = {};
+    
+    if (editCostPrice && editCostPrice.trim() !== '') {
+      updateData.cost_price = parseFloat(editCostPrice);
+    }
+    
+    if (editSalePrice && editSalePrice.trim() !== '') {
+      updateData.sale_price = parseFloat(editSalePrice);
+    }
+    
+    // Se nenhum campo foi preenchido, não fazer nada
+    if (Object.keys(updateData).length === 0) {
+      showToast('Preencha pelo menos um campo para atualizar.', 'warning');
+      return;
+    }
+    
     const { error } = await supabase
       .from('products')
-      .delete()
-      .eq('id', productId)
+      .update(updateData)
+      .eq('id', selectedProduct.id)
       .eq('user_id', userId);
-
+      
     if (error) {
-      console.error('Erro ao excluir produto:', error);
-      alert('Erro ao excluir produto.');
+      console.error('Erro ao atualizar preços:', error);
+      showToast('Erro ao atualizar preços do produto.', 'error');
     } else {
+      // Atualizar a lista de produtos
       fetchProducts();
-      showToast('success', 'Produto excluído.');
+      setShowPriceModal(false);
+      setEditCostPrice('');
+      setEditSalePrice('');
+      setSelectedProduct(null);
+      showToast('Preços atualizados com sucesso!', 'success');
     }
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (!productId || !userId) return;
+    
+    setConfirmTitle('Confirmar Exclusão');
+    setConfirmMessage('Tem certeza que deseja excluir este produto? Esta ação não pode ser desfeita.');
+    setConfirmAction(() => async () => {
+      setLoading(prev => ({ ...prev, delete: true }));
+      
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', productId)
+        .eq('user_id', userId);
+
+      setLoading(prev => ({ ...prev, delete: false }));
+
+      if (error) {
+        console.error('Erro ao excluir produto:', error);
+        showToast('error', 'Erro ao excluir produto.');
+      } else {
+        fetchProducts();
+        showToast('success', 'Produto excluído com sucesso.');
+      }
+      setShowConfirmModal(false);
+    });
+    setShowConfirmModal(true);
   };
   
   const handleRegisterSale = async () => {
@@ -489,10 +807,23 @@ export default function Dashboard({ setUser }) {
       if (existing) {
         return prev.map(it => it.id === product.id ? { ...it, quantity: it.quantity + qty } : it);
       }
+      
+      // Melhorar a lógica de nome do produto
+      let productName = '';
+      if (product.name && product.name.trim()) {
+        productName = product.name.trim();
+      } else if (product.product_name && product.product_name.trim()) {
+        productName = product.product_name.trim();
+      } else if (product.barcode) {
+        productName = `Produto ${product.barcode}`;
+      } else {
+        productName = 'Produto sem nome';
+      }
+      
       return [...prev, {
         id: product.id,
         barcode: product.barcode,
-        name: product.name || product.product_name || String(product.barcode) || 'Produto',
+        name: productName,
         unit_price: Number(product.sale_price) || 0,
         quantity: qty,
       }];
@@ -522,6 +853,7 @@ export default function Dashboard({ setUser }) {
     const name = normalizeText(p.name || p.product_name || '');
     const code = normalizeText(p.barcode);
     if (!q) return 5;
+    // Sistema de ranking para melhorar a relevância das sugestões
     if (code === q) return 0;                                 // código exato
     if (name.startsWith(q)) return 1;                         // nome começa com
     if (new RegExp(`\\b${escapeRegExp(q)}`).test(name)) return 2; // início de palavra
@@ -650,8 +982,17 @@ export default function Dashboard({ setUser }) {
 
     const errors = [];
     const saleDate = new Date();
+    
+    // Calcular desconto proporcional por item
+    const cartSubtotal = salesCart.reduce((acc, it) => acc + (it.unit_price * it.quantity), 0);
+    const discountValue = parseFloat(String(saleDiscount).replace(',', '.')) || 0;
+    const discountRatio = cartSubtotal > 0 ? discountValue / cartSubtotal : 0;
+    
     for (const item of salesCart) {
-      const total = item.unit_price * item.quantity;
+      const itemSubtotal = item.unit_price * item.quantity;
+      const itemDiscount = itemSubtotal * discountRatio;
+      const total = Math.max(0, itemSubtotal - itemDiscount);
+      
       const { error: saleError } = await supabase
         .from('sales')
         .insert([{ 
@@ -687,18 +1028,54 @@ export default function Dashboard({ setUser }) {
 
   const fetchSalesHistory = async () => {
     if (!userId) return;
-    const { data, error } = await supabase
+    
+    // Buscar vendas sem JOIN
+    const { data: salesData, error: salesError } = await supabase
       .from('sales')
       .select('*')
       .eq('user_id', userId)
       .order('date', { ascending: false })
       .limit(100);
-    if (error) {
-      console.error('Erro ao carregar histórico de vendas:', error);
+      
+    if (salesError) {
+      console.error('Erro ao carregar histórico de vendas:', salesError);
       return;
     }
+    
+    if (!salesData || salesData.length === 0) {
+      setSalesHistoryGroups([]);
+      setHistoryPage(1);
+      return;
+    }
+    
+    // Buscar produtos para obter nomes e códigos de barras
+    const productIds = [...new Set(salesData.map(sale => sale.product_id).filter(Boolean))];
+    let productsMap = new Map();
+    
+    if (productIds.length > 0) {
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('id, name, barcode')
+        .in('id', productIds);
+        
+      if (!productsError && productsData) {
+        productsData.forEach(product => {
+          productsMap.set(product.id, product);
+        });
+      }
+    }
+    
+    // Combinar dados de vendas com produtos
+    const enrichedSales = salesData.map(sale => ({
+      ...sale,
+      products: productsMap.get(sale.product_id) || { 
+        name: sale.product_name || 'Produto não encontrado', 
+        barcode: sale.barcode || '' 
+      }
+    }));
+    
     const map = new Map();
-    for (const row of data) {
+    for (const row of enrichedSales) {
       const key = row.date; // mesmo date para itens de uma venda
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(row);
@@ -727,16 +1104,56 @@ export default function Dashboard({ setUser }) {
     }
   };
 
-  // Paginação do histórico
-  const historyTotalPages = Math.max(1, Math.ceil((salesHistoryGroups?.length || 0) / historyPageSize));
+  // Filtrar histórico de vendas
+  const filteredSalesHistoryGroups = salesHistoryGroups.filter(group => {
+    // Filtro por data
+    if (historyDateFilter !== 'all') {
+      const groupDate = new Date(group.date);
+      const now = new Date();
+      
+      switch (historyDateFilter) {
+        case 'today':
+          if (groupDate.toDateString() !== now.toDateString()) return false;
+          break;
+        case 'week':
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          if (groupDate < weekAgo) return false;
+          break;
+        case 'month':
+          const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+          if (groupDate < monthAgo) return false;
+          break;
+      }
+    }
+    
+    // Filtro por produto
+    if (historyFilter.trim()) {
+      const searchTerm = historyFilter.toLowerCase().trim();
+      const hasMatchingProduct = group.items.some(item => 
+        (item.products?.name && item.products.name.toLowerCase().includes(searchTerm)) ||
+        (item.products?.barcode && item.products.barcode.toLowerCase().includes(searchTerm))
+      );
+      if (!hasMatchingProduct) return false;
+    }
+    
+    return true;
+  });
+
+  // Paginação do histórico filtrado
+  const historyTotalPages = Math.max(1, Math.ceil((filteredSalesHistoryGroups?.length || 0) / historyPageSize));
   const clampedPage = Math.min(historyPage, historyTotalPages);
   const startIdx = (clampedPage - 1) * historyPageSize;
-  const pagedSalesHistoryGroups = salesHistoryGroups.slice(startIdx, startIdx + historyPageSize);
+  const pagedFilteredSalesHistoryGroups = filteredSalesHistoryGroups.slice(startIdx, startIdx + historyPageSize);
   const goPrevHistoryPage = () => setHistoryPage((p) => Math.max(1, p - 1));
   const goNextHistoryPage = () => setHistoryPage((p) => Math.min(historyTotalPages, p + 1));
   const handlePageSizeChange = (val) => {
     const n = parseInt(val, 10);
     if (!isNaN(n) && n > 0) { setHistoryPageSize(n); setHistoryPage(1); }
+  };
+
+  const handleViewSaleDetails = (group) => {
+    setSelectedSaleGroup(group);
+    setShowSaleDetailsModal(true);
   };
 
   const toggleSidebar = () => {
@@ -850,7 +1267,7 @@ export default function Dashboard({ setUser }) {
 
   const handleQuickEntryChange = (field, value) => {
     const next = { ...quickEntry, [field]: value };
-    // Regras de cálculo simplificadas: venda sempre calculada a partir do custo + percentual
+    // Mantém os preços sempre sincronizados para evitar inconsistências
     if (field === 'cost_price' || field === 'markup') {
       const c = parseFloat(String(next.cost_price).replace(',', '.'));
       const m = parseFloat(next.markup);
@@ -1448,17 +1865,18 @@ export default function Dashboard({ setUser }) {
   };
 
   return (
-    <div className="dashboard-container">
-      <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <div className="sidebar-header">
-          <div className="logo">
-            {companySettings.logo ? (
-              <img src={companySettings.logo} alt="Logo" className="company-logo" />
-            ) : (
-              <span className="logo-icon"><i className="fas fa-box"></i></span>
-            )}
-            <span>{companySettings.name}</span>
-          </div>
+    <>
+      <div className="dashboard-container">
+        <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+          <div className="sidebar-header">
+            <div className="logo">
+              {companySettings.logo ? (
+                <img src={companySettings.logo} alt="Logo" className="company-logo" />
+              ) : (
+                <span className="logo-icon"><i className="fas fa-box"></i></span>
+              )}
+              <span>{companySettings.name}</span>
+            </div>
         </div>
         <div className="sidebar-content">
           <ul className="nav-menu">
@@ -1478,6 +1896,12 @@ export default function Dashboard({ setUser }) {
               <a href="#" className={`nav-link ${activeTab === 'vendas' ? 'active' : ''}`} onClick={() => setActiveTab('vendas')}>
                 <span className="nav-icon"><i className="fas fa-cash-register"></i></span>
                 <span>Vendas</span>
+              </a>
+            </li>
+            <li className="nav-item">
+              <a href="#" className={`nav-link ${activeTab === 'historico' ? 'active' : ''}`} onClick={() => setActiveTab('historico')}>
+                <span className="nav-icon"><i className="fas fa-chart-line"></i></span>
+                <span>Histórico</span>
               </a>
             </li>
             <li className="nav-item">
@@ -1505,7 +1929,12 @@ export default function Dashboard({ setUser }) {
   <div className="main-content">
       <div className="dashboard-header">
         <div className="header-content">
-          <button className="menu-toggle" onClick={toggleSidebar}>
+          <button 
+            className="menu-toggle" 
+            onClick={toggleSidebar}
+            aria-label="Alternar menu lateral"
+            aria-expanded={sidebarOpen}
+          >
             <i className="fas fa-bars"></i>
           </button>
         </div>
@@ -1517,7 +1946,7 @@ export default function Dashboard({ setUser }) {
               <div className="sales-summary">
                 <h2>Resumo de Vendas</h2>
                 <div className="sales-stats">
-                  <div className="stat-card">
+                  <div className="stat-card" onClick={() => setActiveTab('historico')} style={{ cursor: 'pointer' }}>
                     <div className="stat-icon">
                       <i className="fas fa-money-bill-wave"></i>
                     </div>
@@ -1526,7 +1955,7 @@ export default function Dashboard({ setUser }) {
                       <div className="stat-value">{formatCurrency(totalSales)}</div>
                     </div>
                   </div>
-                  <div className="stat-card">
+                  <div className="stat-card" onClick={() => setActiveTab('produtos')} style={{ cursor: 'pointer' }}>
                     <div className="stat-icon">
                       <i className="fas fa-boxes"></i>
                     </div>
@@ -1535,7 +1964,7 @@ export default function Dashboard({ setUser }) {
                       <div className="stat-value">{totalProducts}</div>
                     </div>
                   </div>
-                  <div className="stat-card">
+                  <div className="stat-card" onClick={() => setActiveTab('produtos')} style={{ cursor: 'pointer' }}>
                     <div className="stat-icon">
                       <i className="fas fa-exclamation-triangle"></i>
                     </div>
@@ -1555,84 +1984,193 @@ export default function Dashboard({ setUser }) {
             <div className="produtos-page">
               <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h2><i className="fas fa-boxes"></i> Gerenciar Produtos</h2>
-                <button className="btn-primary" onClick={() => setShowEntryModal(true)}>
+                <button 
+                  className="btn-primary" 
+                  onClick={() => setShowEntryModal(true)}
+                  aria-label="Abrir modal para adicionar novo produto"
+                >
                   <i className="fas fa-plus"></i>
                   Adicionar Produto
                 </button>
               </div>
               
               <div className="products-section card">
-                <div className="products-filters" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                  <div className="form-group">
-                    <label htmlFor="productCodeSearch">Código de Barras</label>
-                    <input
-                      id="productCodeSearch"
-                      type="text"
-                      className="form-input"
-                      placeholder="Pesquisar por código de barras"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+                <div className="products-filters">
+                  <div className="basic-filters" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '1rem', marginBottom: '1rem' }}>
+                    <div className="form-group">
+                      <label htmlFor="productSearch">Buscar Produto</label>
+                      <input
+                        id="productSearch"
+                        type="text"
+                        className="form-input"
+                        placeholder="Pesquisar por nome ou código de barras"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        aria-describedby="productSearchDesc"
+                      />
+                    </div>
+                    <div className="form-group" style={{ display: 'flex', alignItems: 'end' }}>
+                      <button 
+                        className={`btn-outline ${showAdvancedFilters ? 'active' : ''}`}
+                        onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                        aria-label="Alternar filtros avançados"
+                      >
+                        <i className="fas fa-filter"></i>
+                        Filtros Avançados
+                      </button>
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label htmlFor="productNameSearch">Busca por Nome/Código</label>
-                    <input
-                      id="productNameSearch"
-                      type="text"
-                      className="form-input"
-                      placeholder="Pesquisar por nome ou código"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
+
+                  {showAdvancedFilters && (
+                    <div className="advanced-filters card" style={{ padding: '1rem', marginBottom: '1rem', background: 'var(--surface-color)', border: '1px solid var(--border-color)' }}>
+                      <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-primary)' }}>
+                        <i className="fas fa-sliders-h"></i> Filtros Avançados
+                      </h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                        <div className="form-group">
+                          <label htmlFor="minPrice">Preço Mínimo</label>
+                          <input
+                            id="minPrice"
+                            type="number"
+                            step="0.01"
+                            className="form-input"
+                            placeholder="R$ 0,00"
+                            value={filters.minPrice}
+                            onChange={(e) => setFilters(prev => ({ ...prev, minPrice: e.target.value }))}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor="maxPrice">Preço Máximo</label>
+                          <input
+                            id="maxPrice"
+                            type="number"
+                            step="0.01"
+                            className="form-input"
+                            placeholder="R$ 999,99"
+                            value={filters.maxPrice}
+                            onChange={(e) => setFilters(prev => ({ ...prev, maxPrice: e.target.value }))}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor="minStock">Estoque Mínimo</label>
+                          <input
+                            id="minStock"
+                            type="number"
+                            className="form-input"
+                            placeholder="0"
+                            value={filters.minStock}
+                            onChange={(e) => setFilters(prev => ({ ...prev, minStock: e.target.value }))}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor="maxStock">Estoque Máximo</label>
+                          <input
+                            id="maxStock"
+                            type="number"
+                            className="form-input"
+                            placeholder="999"
+                            value={filters.maxStock}
+                            onChange={(e) => setFilters(prev => ({ ...prev, maxStock: e.target.value }))}
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label htmlFor="stockStatus">Status do Estoque</label>
+                          <select
+                            id="stockStatus"
+                            className="form-input"
+                            value={filters.stockStatus}
+                            onChange={(e) => setFilters(prev => ({ ...prev, stockStatus: e.target.value }))}
+                          >
+                            <option value="">Todos</option>
+                            <option value="low">Baixo (&lt; 10)</option>
+                            <option value="normal">Normal (10-49)</option>
+                            <option value="high">Alto (≥ 50)</option>
+                          </select>
+                        </div>
+                        <div className="form-group" style={{ display: 'flex', alignItems: 'end', gap: '0.5rem' }}>
+                          <button 
+                            className="btn-outline"
+                            onClick={() => setFilters({
+                              category: '',
+                              minPrice: '',
+                              maxPrice: '',
+                              stockStatus: '',
+                              minStock: '',
+                              maxStock: ''
+                            })}
+                            aria-label="Limpar todos os filtros"
+                          >
+                            <i className="fas fa-times"></i>
+                            Limpar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="products-table-container">
-                  <table className="products-table">
+                  <table 
+                    className="products-table"
+                    role="table"
+                    aria-label="Tabela de produtos cadastrados"
+                  >
                     <thead>
-                      <tr>
-                        <th>Código de Barras</th>
-                        <th>Nome do Produto</th>
-                        <th>Quantidade em Estoque</th>
-                        <th>Preço de Custo</th>
-                        <th>Preço de Venda</th>
-                        <th>Status</th>
-                        <th>Ações</th>
+                      <tr role="row">
+                        <th role="columnheader">Código de Barras</th>
+                        <th role="columnheader">Nome do Produto</th>
+                        <th role="columnheader">Quantidade em Estoque</th>
+                        <th role="columnheader">Preço de Custo</th>
+                        <th role="columnheader">Preço de Venda</th>
+                        <th role="columnheader">Status</th>
+                        <th role="columnheader">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredProducts.length > 0 ? (
                         filteredProducts.map((product) => (
-                          <tr key={product.id}>
-                            <td>{product.barcode}</td>
-                            <td>{product.name}</td>
-                            <td>
+                          <tr key={product.id} role="row">
+                            <td role="cell">{product.barcode}</td>
+                            <td role="cell">{product.name}</td>
+                            <td role="cell">
                               <span className={`quantity-badge ${product.quantity < 10 ? 'low-stock' : ''}`}>
                                 {product.quantity}
                               </span>
                             </td>
-                            <td>{formatCurrency(getCost(product))}</td>
-                            <td>{formatCurrency(product.sale_price)}</td>
-                            <td>
+                            <td role="cell">{formatCurrency(getCost(product))}</td>
+                            <td role="cell">{formatCurrency(product.sale_price)}</td>
+                            <td role="cell">
                               <span className={`status-badge ${product.quantity < 10 ? 'warning' : 'success'}`}>
                                 {product.quantity < 10 ? 'Estoque Baixo' : 'Em Estoque'}
                               </span>
                             </td>
-                            <td className="actions-cell">
+                            <td className="actions-cell" role="cell">
                               <button
-                                className="btn-outline btn-action"
+                                className="btn-action edit"
                                 onClick={() => {
                                   setSelectedProduct(product);
                                   setShowQuantityModal(true);
                                 }}
                                 title="Ajustar Quantidade"
+                                aria-label={`Ajustar quantidade do produto ${product.name}`}
                               >
                                 <i className="fas fa-edit"></i>
                               </button>
                               <button
-                                className="btn-outline btn-action"
+                                className="btn-action edit"
+                                onClick={() => {
+                                  setSelectedProduct(product);
+                                  setShowPriceModal(true);
+                                }}
+                                title="Editar Custos e Preços"
+                                aria-label={`Editar custos e preços do produto ${product.name}`}
+                              >
+                                <i className="fas fa-dollar-sign"></i>
+                              </button>
+                              <button
+                                className="btn-action delete"
                                 onClick={() => handleDeleteProduct(product.id)}
                                 title="Excluir Produto"
-                                style={{ color: '#ef4444', borderColor: '#ef4444' }}
+                                aria-label={`Excluir produto ${product.name}`}
                               >
                                 <i className="fas fa-trash"></i>
                               </button>
@@ -1704,7 +2242,7 @@ export default function Dashboard({ setUser }) {
                             title={s.name || s.product_name || s.barcode}
                             onClick={() => { addProductToCart(s, 1); setSaleSearch(''); setSaleSuggestions([]); setSaleSuggestionIndex(-1); }}
                           >
-                            <div className="sg-name">{renderHighlighted(String(s.name || s.product_name || s.barcode || 'Produto'), saleSearch)}</div>
+                            <div className="sg-name">{renderHighlighted(String(s.name && s.name.trim() ? s.name.trim() : s.product_name && s.product_name.trim() ? s.product_name.trim() : s.barcode ? `Produto ${s.barcode}` : 'Produto sem nome'), saleSearch)}</div>
                             <div className="sg-meta">{formatCurrency(s.sale_price)} • Estoque: {s.quantity}</div>
                           </button>
                         ))}
@@ -1744,6 +2282,9 @@ export default function Dashboard({ setUser }) {
                     <label>Desconto (R$)</label>
                     <input type="number" min="0" step="0.01" value={saleDiscount} onChange={(e) => setSaleDiscount(e.target.value)} />
                   </div>
+                  {discountValue > 0 && (
+                    <div className="summary-row discount-row"><span>Desconto</span><strong>-{formatCurrency(discountValue)}</strong></div>
+                  )}
                   <div className="summary-row"><span>Total</span><strong>{formatCurrency(cartTotal)}</strong></div>
                   <div className="actions">
                     <button className="btn-success" onClick={handleFinalizeSale} disabled={salesCart.length === 0}>
@@ -1754,44 +2295,15 @@ export default function Dashboard({ setUser }) {
                 </div>
               </div>
 
-              <div className="sales-history card">
-                <div className="history-header">
-                  <h3>Histórico de Vendas (recentes)</h3>
-                  <div className="history-controls">
-                    <label className="page-label">Itens por página</label>
-                    <select className="page-size-select" value={historyPageSize} onChange={(e) => handlePageSizeChange(e.target.value)}>
-                      <option value={5}>5</option>
-                      <option value={10}>10</option>
-                      <option value={20}>20</option>
-                    </select>
-                    <div className="pagination">
-                      <button className="btn-outline" onClick={goPrevHistoryPage} disabled={clampedPage === 1}>
-                        ← Anterior
-                      </button>
-                      <span className="page-indicator">Página {clampedPage} de {historyTotalPages}</span>
-                      <button className="btn-outline" onClick={goNextHistoryPage} disabled={clampedPage === historyTotalPages}>
-                        Próxima →
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                {salesHistoryGroups && salesHistoryGroups.length > 0 ? (
-                  <div className="history-list">
-                    {pagedSalesHistoryGroups.map(group => (
-                      <div className="history-item" key={group.date}>
-                        <div className="history-main">
-                          <div className="history-date">{new Date(group.date).toLocaleString()}</div>
-                          <div className="history-total">{formatCurrency(group.total)}</div>
-                          <div className="history-count">{group.items.length} itens</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="helper-text">Nenhuma venda registrada recentemente</p>
-                )}
-              </div>
             </div>
+          )}
+
+          {activeTab === 'historico' && (
+            <SalesHistory 
+              userId={userId}
+              showToast={showToast}
+              formatCurrency={formatCurrency}
+            />
           )}
 
           {activeTab === 'custos' && (
@@ -1851,6 +2363,7 @@ export default function Dashboard({ setUser }) {
                   <div className="form-group"><label>Frete</label><input type="number" step="0.01" className="form-input" value={freight} onChange={(e)=>setFreight(e.target.value)} /></div>
                   <div className="form-group"><label>Embalagem</label><input type="number" step="0.01" className="form-input" value={packaging} onChange={(e)=>setPackaging(e.target.value)} /></div>
                   <div className="form-group"><label>Outros custos</label><input type="number" step="0.01" className="form-input" value={otherCosts} onChange={(e)=>setOtherCosts(e.target.value)} /></div>
+                  <div className="form-group"><label>Outros custos (%)</label><input type="number" step="0.01" className="form-input" value={otherCostsPercent} onChange={(e)=>setOtherCostsPercent(e.target.value)} placeholder="Ex.: 5 (para royalty)" /></div>
                   <div className="divider"></div>
                   <h4>Impostos</h4>
                   {calcSimpleMode ? (
@@ -1896,6 +2409,23 @@ export default function Dashboard({ setUser }) {
                   )}
                   {calcMode === 'reverse' && (
                     <div className="helper-text">Margem calculada a partir do preço informado.</div>
+                  )}
+                  
+                  {selectedCalcProduct && costWithTaxes > 0 && effectiveSalePrice > 0 && (
+                    <div className="calc-actions">
+                      <div className="divider"></div>
+                      <button 
+                        className="btn-success"
+                        onClick={handleApplyCalculatedPrices}
+                        title="Aplicar os preços calculados ao produto selecionado"
+                      >
+                        <i className="fas fa-check"></i>
+                        Aplicar ao Produto: {selectedCalcProduct.name}
+                      </button>
+                      <p className="helper-text">
+                        Custo: {formatCurrency(costWithTaxes)} • Venda: {formatCurrency(effectiveSalePrice)}
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2000,11 +2530,15 @@ export default function Dashboard({ setUser }) {
 
       {/* Modal de Entrada de Produtos (unificado) */}
       {showEntryModal && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="entry-modal-title">
           <div className="modal batch-modal">
             <div className="modal-header">
-              <h2>Entrada de Produtos</h2>
-              <button className="close-btn" onClick={() => setShowEntryModal(false)}>×</button>
+              <h2 id="entry-modal-title">Entrada de Produtos</h2>
+              <button 
+                className="close-btn" 
+                onClick={() => setShowEntryModal(false)}
+                aria-label="Fechar modal de entrada de produtos"
+              >×</button>
             </div>
             <div className={`modal-body ${simpleMode ? 'simple-mode' : ''}`}>
               {/* Alternador de modo */}
@@ -2155,12 +2689,30 @@ export default function Dashboard({ setUser }) {
                 </div>
               </div>
               <div className="batch-form advanced-only">
-                <div className="batch-tools" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <div className="totals" style={{ marginLeft: 'auto', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                    <span>Itens: {totals.qty}</span>
-                    <span>Custo: {formatCurrency(totals.cost)}</span>
-                    <span>Venda: {formatCurrency(totals.value)}</span>
-                    <span>Margem: {formatCurrency(totals.margin)}</span>
+                <div className="batch-tools">
+                  <div className="totals-summary">
+                    <div className="totals-header">
+                      <i className="fas fa-calculator"></i>
+                      <span>Resumo da Entrada</span>
+                    </div>
+                    <div className="totals-grid">
+                      <div className="total-item">
+                        <div className="total-label">Itens</div>
+                        <div className="total-value">{totals.qty}</div>
+                      </div>
+                      <div className="total-item">
+                        <div className="total-label">Custo Total</div>
+                        <div className="total-value cost">{formatCurrency(totals.cost)}</div>
+                      </div>
+                      <div className="total-item">
+                        <div className="total-label">Venda Total</div>
+                        <div className="total-value sale">{formatCurrency(totals.value)}</div>
+                      </div>
+                      <div className="total-item">
+                        <div className="total-label">Margem</div>
+                        <div className="total-value margin">{formatCurrency(totals.margin)}</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="batch-table-container">
@@ -2239,11 +2791,15 @@ export default function Dashboard({ setUser }) {
 
     {/* Modal de Ajuste de Quantidade */}
     {showQuantityModal && selectedProduct && (
-        <div className="modal-overlay">
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="quantity-modal-title">
           <div className="modal">
             <div className="modal-header">
-              <h2>Ajustar Quantidade</h2>
-              <button className="close-btn" onClick={() => setShowQuantityModal(false)}>×</button>
+              <h2 id="quantity-modal-title">Ajustar Quantidade</h2>
+              <button 
+                className="close-btn" 
+                onClick={() => setShowQuantityModal(false)}
+                aria-label="Fechar modal de ajuste de quantidade"
+              >×</button>
             </div>
             <div className="modal-body">
               <p><strong>Produto:</strong> {selectedProduct.name}</p>
@@ -2319,6 +2875,181 @@ export default function Dashboard({ setUser }) {
           </div>
         </div>
       )}
-    </div>
+
+      {/* Modal de Detalhes da Venda */}
+      {showSaleDetailsModal && selectedSaleGroup && (
+        <div className="modal-overlay">
+          <div className="modal sale-details-modal">
+            <div className="modal-header">
+              <h2>Detalhes da Venda</h2>
+              <button className="close-btn" onClick={() => setShowSaleDetailsModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="sale-info">
+                <div className="sale-info-row">
+                  <span className="label">Data:</span>
+                  <span className="value">{new Date(selectedSaleGroup.date).toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="sale-info-row">
+                  <span className="label">Total de Itens:</span>
+                  <span className="value">{selectedSaleGroup.items.length}</span>
+                </div>
+                <div className="sale-info-row total-row">
+                  <span className="label">Total da Venda:</span>
+                  <span className="value total-value">{formatCurrency(selectedSaleGroup.total)}</span>
+                </div>
+              </div>
+              
+              <div className="items-section">
+                <h3>Itens da Venda</h3>
+                <div className="items-list">
+                  {selectedSaleGroup.items.map((item, index) => (
+                    <div key={index} className="item-card">
+                      <div className="item-header">
+                        <span className="item-name">
+                          {item.products?.name || item.product_name || 'Produto não encontrado'}
+                        </span>
+                        <span className="item-total">{formatCurrency(item.total)}</span>
+                      </div>
+                      <div className="item-details">
+                        <span className="item-detail">
+                          <strong>Código:</strong> {item.products?.barcode || item.barcode || 'N/A'}
+                        </span>
+                        <span className="item-detail">
+                          <strong>Qtd:</strong> {item.quantity}
+                        </span>
+                        <span className="item-detail">
+                          <strong>Preço Unit.:</strong> {formatCurrency(item.unit_price)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-primary" onClick={() => setShowSaleDetailsModal(false)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Custos e Preços */}
+      {showPriceModal && selectedProduct && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="price-modal-title">
+          <div className="modal">
+            <div className="modal-header">
+              <h2 id="price-modal-title">Editar Custos e Preços</h2>
+              <button 
+                className="close-btn" 
+                onClick={() => setShowPriceModal(false)}
+                aria-label="Fechar modal de edição de preços"
+              >×</button>
+            </div>
+            <div className="modal-body">
+              <p><strong>Produto:</strong> {selectedProduct.name}</p>
+              <p><strong>Código:</strong> {selectedProduct.barcode}</p>
+              
+              <div className="form-group">
+                <label htmlFor="editCostPrice">Preço de Custo (R$):</label>
+                <input
+                  type="number"
+                  id="editCostPrice"
+                  value={editCostPrice}
+                  onChange={(e) => setEditCostPrice(e.target.value)}
+                  min="0"
+                  step="0.01"
+                  className="form-input"
+                  placeholder={`Atual: ${formatCurrency(getCost(selectedProduct))}`}
+                />
+                <p className="helper-text">Deixe vazio para manter o valor atual</p>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="editSalePrice">Preço de Venda (R$):</label>
+                <input
+                  type="number"
+                  id="editSalePrice"
+                  value={editSalePrice}
+                  onChange={(e) => setEditSalePrice(e.target.value)}
+                  min="0.01"
+                  step="0.01"
+                  className="form-input"
+                  placeholder={`Atual: ${formatCurrency(selectedProduct.sale_price)}`}
+                />
+                <p className="helper-text">Deixe vazio para manter o valor atual</p>
+              </div>
+
+              {editCostPrice && editSalePrice && (
+                <div className="price-summary">
+                  <p><strong>Margem de Lucro:</strong> {formatCurrency(parseFloat(editSalePrice) - parseFloat(editCostPrice))}</p>
+                  <p><strong>Percentual:</strong> {((parseFloat(editSalePrice) - parseFloat(editCostPrice)) / parseFloat(editCostPrice) * 100).toFixed(2)}%</p>
+                </div>
+              )}
+
+              <div className="calc-shortcut">
+                <p><strong>💡 Dica:</strong> Use a aba "Custos" para cálculos mais detalhados com impostos e margens!</p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-outline" onClick={() => setShowPriceModal(false)}>Cancelar</button>
+              <button className="btn-primary" onClick={handleUpdatePrices}>Atualizar Preços</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação */}
+      {showConfirmModal && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+          <div className="modal confirm-modal">
+            <div className="modal-header">
+              <h2 id="confirm-modal-title">{confirmTitle}</h2>
+            </div>
+            <div className="modal-body">
+              <div className="confirm-content">
+                <div className="confirm-icon">
+                  <i className="fas fa-exclamation-triangle"></i>
+                </div>
+                <p>{confirmMessage}</p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn-outline" 
+                onClick={() => setShowConfirmModal(false)}
+                disabled={loading.delete}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="btn-danger" 
+                onClick={confirmAction}
+                disabled={loading.delete}
+              >
+                {loading.delete ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin"></i>
+                    Excluindo...
+                  </>
+                ) : (
+                  'Confirmar'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+      
+      {/* Footer com Copyright */}
+      <footer className="app-footer">
+        <div className="footer-content">
+          <p className="copyright">
+            © 2025 <strong><a href="https://github.com/https-gustavo" target="_blank" rel="noopener noreferrer">Gustavo Menezes</a></strong> - Projeto Integrador Univesp
+          </p>
+        </div>
+      </footer>
+    </>
   );
 }

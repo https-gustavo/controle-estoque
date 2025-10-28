@@ -3,7 +3,12 @@ import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
 
+/**
+ * Componente de cadastro de novos usuários
+ * Inclui validação de senhas e criação automática de conta
+ */
 export default function Signup({ switchToLogin, setUser }) {
+  // Estados do formulário de cadastro
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -11,6 +16,10 @@ export default function Signup({ switchToLogin, setUser }) {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  /**
+   * Processa o cadastro do usuário com validações
+   * Verifica se senhas coincidem e atendem critérios mínimos
+   */
   const handleSignup = async () => {
     if (password !== confirmPassword) {
       setMessage('As senhas não coincidem');
@@ -38,6 +47,7 @@ export default function Signup({ switchToLogin, setUser }) {
     setLoading(false);
   };
 
+  // Permite cadastro com Enter
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       handleSignup();
@@ -53,18 +63,18 @@ export default function Signup({ switchToLogin, setUser }) {
               <span className="logo-icon"><i className="fas fa-box"></i></span>
               <h1>Estoque Pro</h1>
             </div>
-            <p className="login-subtitle">Crie sua conta para começar</p>
+            <p className="login-subtitle">Crie sua conta e comece a gerenciar seu estoque</p>
           </div>
           
           <div className="login-form">
             <div className="form-group">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">E-mail</label>
               <div className="input-wrapper">
                 <i className="fas fa-envelope input-icon"></i>
                 <input
                   id="email"
                   type="email"
-                  placeholder="Digite seu email"
+                  placeholder="Digite seu e-mail"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   onKeyPress={handleKeyPress}
@@ -80,7 +90,7 @@ export default function Signup({ switchToLogin, setUser }) {
                 <input
                   id="password"
                   type="password"
-                  placeholder="Digite sua senha (mín. 6 caracteres)"
+                  placeholder="Crie uma senha (mínimo 6 caracteres)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyPress={handleKeyPress}
@@ -125,7 +135,7 @@ export default function Signup({ switchToLogin, setUser }) {
             
             <div className="login-footer">
               <p className="auth-switch" onClick={switchToLogin}>
-                Já tem conta? <span>Fazer login</span>
+                Já possui uma conta? <span>Fazer login</span>
               </p>
             </div>
             

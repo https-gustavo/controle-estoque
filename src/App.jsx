@@ -6,11 +6,16 @@ import Signup from './components/Signup';
 import Dashboard from './components/Dashboard';
 import { supabase } from './supabaseClient';
 
+/**
+ * Componente principal da aplicação
+ * Gerencia roteamento e estado de autenticação global
+ */
 function App() {
-  const [user, setUser] = useState(null); // estado de usuário logado
-  const [authChecked, setAuthChecked] = useState(false); // evita redirecionar antes de checar sessão
+  // Estados globais de autenticação
+  const [user, setUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
-  // Mantém sessão ao recarregar a página e reage a mudanças de auth
+  // Inicializa sessão e monitora mudanças de autenticação
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
@@ -21,6 +26,7 @@ function App() {
       }
     };
     init();
+    // Escuta mudanças no estado de autenticação
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
@@ -33,7 +39,6 @@ function App() {
   return (
     <Router basename={(import.meta.env.BASE_URL || '/').replace(/\/$/, '')}>
       <Routes>
-        {/* Página de login */}
         <Route
           path="/"
           element={
@@ -51,7 +56,6 @@ function App() {
           }
         />
 
-        {/* Página de cadastro */}
         <Route
           path="/signup"
           element={
@@ -69,7 +73,6 @@ function App() {
           }
         />
 
-        {/* Dashboard protegido */}
         <Route
           path="/dashboard"
           element={
@@ -88,7 +91,10 @@ function App() {
   );
 }
 
-// Wrapper para alternar Login ↔ Signup
+/**
+ * Wrapper para alternar entre componentes de login e cadastro
+ * Controla qual formulário de autenticação exibir
+ */
 const AuthWrapper = ({ showSignup, setUser }) => {
   const [isSignup, setIsSignup] = useState(showSignup);
 
