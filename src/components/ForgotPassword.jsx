@@ -30,17 +30,27 @@ export default function ForgotPassword({ switchToLogin }) {
       const origin = window.location.origin;
       const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
       
+      let resetUrl;
       if (isLocalhost) {
         // Em desenvolvimento local
-        return `${origin}/reset-password`;
+        resetUrl = `${origin}/reset-password`;
       } else {
-        // Em produção (GitHub Pages)
-        return `${origin}/controle-estoque/reset-password`;
+        // Em produção (GitHub Pages) - força a URL correta
+        resetUrl = `https://https-gustavo.github.io/controle-estoque/reset-password`;
       }
+      
+      console.log('🔗 URL de reset configurada:', resetUrl);
+      console.log('🌍 Origin atual:', origin);
+      console.log('🏠 É localhost?', isLocalhost);
+      
+      return resetUrl;
     };
 
+    const resetUrl = getResetUrl();
+    console.log('📧 Enviando email com redirectTo:', resetUrl);
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: getResetUrl(),
+      redirectTo: resetUrl,
     });
 
     if (error) {
