@@ -62,7 +62,7 @@ function App() {
             path="/reset-password"
             element={
               <div className="App">
-                <ResetPassword onPasswordReset={() => window.location.href = '/controle-estoque/'} />
+                <ResetPassword onPasswordReset={() => window.location.href = './'} />
               </div>
             }
           />

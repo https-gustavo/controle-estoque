@@ -143,7 +143,8 @@ export default function ResetPassword({ onPasswordReset }) {
           if (onPasswordReset) {
             onPasswordReset();
           } else {
-            window.location.href = '/controle-estoque/';
+            // Redireciona para a página inicial usando caminho relativo
+            window.location.href = './';
           }
         }, 2000);
       }
@@ -231,7 +232,7 @@ export default function ResetPassword({ onPasswordReset }) {
 
                 <button 
                   className="btn-primary login-btn"
-                  onClick={() => window.location.href = '/controle-estoque/'}
+                  onClick={() => window.location.href = './'}
                 >
                   <i className="fas fa-home"></i>
                   Voltar ao Início
