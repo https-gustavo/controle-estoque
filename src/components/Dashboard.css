@@ -16,6 +16,159 @@
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+/* Mobile Portrait - Telas muito pequenas */
+@media (max-width: 480px) {
+  .sidebar {
+    width: min(90vw, 280px);
+  }
+  
+  .dashboard-header {
+    padding: 0.5rem;
+  }
+  
+  .header-content {
+    gap: 0.5rem;
+  }
+  
+  .menu-toggle {
+    margin-right: 0.5rem;
+  }
+  
+  .search-input {
+    min-width: 120px;
+    max-width: 180px;
+  }
+  
+  .dashboard-content {
+    padding: 0.75rem;
+  }
+  
+  .sales-stats {
+    gap: 0.5rem;
+  }
+  
+  .stat-card {
+    padding: 0.75rem;
+    font-size: 0.875rem;
+  }
+  
+  .stat-card .stat-icon {
+    width: 2rem;
+    height: 2rem;
+    margin-right: 0.75rem;
+  }
+  
+  .stat-card .stat-value {
+    font-size: 1.25rem;
+  }
+  
+  .products-table {
+    font-size: 0.8rem;
+    min-width: 500px;
+  }
+  
+  .products-table th,
+  .products-table td {
+    padding: 0.5rem 0.25rem;
+  }
+  
+  .actions-cell .btn {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.7rem;
+    min-width: 50px;
+  }
+  
+  .modal {
+    margin: 0.25rem;
+    max-width: calc(100vw - 0.5rem);
+  }
+  
+  .modal-header {
+    padding: 0.75rem;
+  }
+  
+  .modal-content {
+    padding: 0.75rem;
+  }
+  
+  .btn, .btn-primary, .btn-outline {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+  
+  .page-actions .btn-primary,
+  .page-actions .btn-outline {
+    min-width: 100px;
+  }
+}
+
+/* Tablets */
+@media (max-width: 1024px) and (min-width: 768px) {
+  .sidebar {
+    width: 240px;
+  }
+  
+  .dashboard-content {
+    padding: 1.5rem;
+  }
+  
+  .sales-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .products-table {
+    font-size: 0.9rem;
+  }
+  
+  .products-table th,
+  .products-table td {
+    padding: 1rem 0.75rem;
+  }
+}
+
+/* Mobile Portrait */
+@media (max-width: 480px) {
+  .dashboard-content {
+    padding: 0.75rem;
+  }
+  
+  .sales-stats {
+    gap: 0.5rem;
+  }
+  
+  .stat-card {
+    padding: 0.75rem;
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+  
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.25rem;
+  }
+  
+  .stat-value {
+    font-size: 1.5rem;
+  }
+  
+  .products-table {
+    min-width: 500px;
+  }
+  
+  .modal-content {
+    width: 98vw;
+    margin: 0.5rem;
+    padding: 1rem;
+  }
+  
+  .btn, .btn-primary, .btn-outline {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+}
+
 /* ========================================
    ENTRADA RÁPIDA - Sugestões e busca por código
 ======================================== */
@@ -363,6 +516,25 @@ body {
   transform: translateX(0);
 }
 
+/* Overlay para mobile quando sidebar está aberto */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.sidebar-overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
 .sidebar-header {
   padding: 2rem 1.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -479,17 +651,34 @@ body {
   font-size: 1.25rem;
   color: var(--text-primary);
   cursor: pointer;
-  padding: 0.5rem;
+  padding: 0.75rem;
   border-radius: var(--radius);
-  transition: background-color 0.2s ease;
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  position: relative;
+  z-index: 1001;
 }
 
 .menu-toggle:hover {
   background-color: var(--background-color);
+  transform: scale(1.05);
+}
+
+.menu-toggle:active {
+  transform: scale(0.95);
+}
+
+/* Animação do ícone hambúrguer */
+.menu-toggle i {
+  transition: transform 0.3s ease;
+}
+
+.menu-toggle.active i {
+  transform: rotate(90deg);
 }
 
 .header-actions {
@@ -1225,11 +1414,18 @@ body {
 
 /* Responsividade Melhorada */
 
-/* Tablets e Desktop */
-@media (min-width: 768px) {
+/* Cards Mobile - Ocultos por padrão */
+.products-mobile-cards {
+  display: none;
+}
+
+/* Desktop - Sidebar sempre visível */
+@media (min-width: 1025px) {
   .sidebar {
     position: fixed;
+    width: var(--sidebar-width);
     transform: translateX(-100%);
+    transition: transform 0.3s ease;
   }
   
   .sidebar.open {
@@ -1241,12 +1437,17 @@ body {
     transition: margin-left 0.3s ease;
   }
   
-  .sidebar.open ~ .main-content {
+  .main-content.sidebar-open {
     margin-left: var(--sidebar-width);
   }
   
+  /* Manter o botão do menu visível no desktop também */
   .menu-toggle {
-    display: block;
+    display: flex;
+  }
+  
+  .sidebar-overlay {
+    display: none;
   }
   
   .sales-stats {
@@ -1261,11 +1462,23 @@ body {
 /* Tablets */
 @media (min-width: 768px) and (max-width: 1024px) {
   .sidebar {
-    width: var(--sidebar-width);
+    position: fixed;
+    transform: translateX(-100%);
+    width: min(80vw, 300px);
+    z-index: 1000;
+  }
+  
+  .sidebar.open {
+    transform: translateX(0);
   }
   
   .main-content {
-    margin-left: var(--sidebar-width);
+    margin-left: 0;
+    transition: margin-left 0.3s ease;
+  }
+  
+  .menu-toggle {
+    display: block;
   }
   
   .dashboard-content {
@@ -1296,31 +1509,62 @@ body {
   /* Sidebar como overlay com largura fluida em mobile */
   .sidebar {
     width: min(85vw, 320px);
+    z-index: 1000;
+    position: fixed;
+    transform: translateX(-100%);
   }
+  
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  
   .sidebar.open ~ .main-content {
     margin-left: 0;
   }
   
+  .menu-toggle {
+    display: block;
+  }
+  
+  /* Header responsivo */
   .dashboard-header {
     padding: 0.75rem 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg-color);
+    border-bottom: 1px solid var(--border-color);
   }
   
   .header-content {
-    flex-direction: column;
-    gap: 0.75rem;
-    align-items: stretch;
+    flex-direction: row;
+    gap: 1rem;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  
+  .menu-toggle {
+    margin-right: 1rem;
+    order: -1;
   }
   
   .header-actions {
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.5rem;
+    flex: 1;
   }
   
   .search-input {
     width: 100%;
-    max-width: none;
-    min-width: 200px;
+    max-width: 250px;
+    min-width: 150px;
+  }
+  
+  /* Conteúdo principal */
+  .main-content {
+    margin-left: 0;
+    width: 100%;
   }
   
   .dashboard-content {
@@ -1336,6 +1580,12 @@ body {
     padding: 1rem;
     flex-direction: row;
     text-align: left;
+    align-items: center;
+  }
+  
+  .stat-card .stat-icon {
+    margin-bottom: 0;
+    margin-right: 1rem;
   }
   
   .page-header {
@@ -1359,7 +1609,7 @@ body {
   }
   
   /* Tabelas responsivas */
-  .products-table-container {
+  .table-responsive {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     border-radius: var(--radius);
@@ -1367,8 +1617,8 @@ body {
   }
   
   .products-table {
+    font-size: 0.875rem;
     min-width: 600px;
-    font-size: 0.8rem;
   }
   
   .products-table th,
@@ -1378,6 +1628,41 @@ body {
     vertical-align: middle;
   }
   
+  /* Ocultar colunas menos importantes em mobile, mas manter ações */
+  .products-table th:nth-child(4),
+  .products-table th:nth-child(5),
+  .products-table th:nth-child(6),
+  .products-table td:nth-child(4),
+  .products-table td:nth-child(5),
+  .products-table td:nth-child(6) {
+    display: none;
+  }
+  
+  /* Mostrar apenas colunas essenciais: Nome, Quantidade, Preço, Ações */
+  .products-table th:nth-child(1),
+  .products-table th:nth-child(2),
+  .products-table th:nth-child(3),
+  .products-table th:last-child,
+  .products-table td:nth-child(1),
+  .products-table td:nth-child(2),
+  .products-table td:nth-child(3),
+  .products-table td:last-child {
+    display: table-cell !important;
+  }
+  
+  /* Ajustar ações para mobile */
+  .actions-cell {
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 80px;
+  }
+  
+  .actions-cell .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    min-width: 60px;
+  }
+  
   /* Modais responsivos */
   .modal {
     margin: 0.5rem;
@@ -1385,15 +1670,17 @@ body {
     max-height: calc(100vh - 1rem);
   }
   
+  .modal-content {
+    width: 100%;
+    max-width: 400px;
+    margin: 0;
+  }
+  
   .batch-modal {
     max-width: calc(100vw - 1rem);
   }
   
   .modal-header {
-    padding: 1rem;
-  }
-  
-  .modal-content {
     padding: 1rem;
   }
   
@@ -1410,6 +1697,12 @@ body {
   .batch-table th,
   .batch-table td {
     padding: 0.5rem 0.25rem;
+  }
+  
+  /* Botões menores em mobile */
+  .btn, .btn-primary, .btn-outline {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
   }
   
   .batch-table .actions-cell {
@@ -1625,6 +1918,87 @@ body {
     width: 40px;
     height: 40px;
     font-size: 20px;
+  }
+
+  /* Layout de Cards para Tabela Mobile */
+  .products-table-container .table-responsive {
+    display: none;
+  }
+  
+  .products-mobile-cards {
+    display: block !important;
+  }
+  
+  .product-card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .product-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+  }
+  
+  .product-card-title {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 1rem;
+    margin: 0;
+  }
+  
+  .product-card-code {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: var(--background-color);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+  }
+  
+  .product-card-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  
+  .product-info-item {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .product-info-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+  }
+  
+  .product-info-value {
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+  
+  .product-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+  }
+  
+  .product-card-actions .btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    min-width: auto;
+    flex: 1;
+    max-width: 100px;
   }
 }
 

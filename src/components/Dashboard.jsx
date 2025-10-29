@@ -1156,8 +1156,43 @@ export default function Dashboard({ setUser }) {
     setShowSaleDetailsModal(true);
   };
 
+  // Função para alternar sidebar com melhor comportamento mobile
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
+  };
+
+  // Função para fechar sidebar ao clicar no overlay (mobile)
+  const closeSidebar = () => {
+    setSidebarOpen(false);
+  };
+
+  // Detectar redimensionamento e ajustar sidebar automaticamente
+  useEffect(() => {
+    const handleResize = () => {
+      const isMobile = window.innerWidth <= 1024;
+      
+      if (isMobile) {
+        // Em mobile/tablet, sidebar começa fechado
+        setSidebarOpen(false);
+      }
+      // Em desktop, não forçar estado - deixar o usuário controlar
+    };
+
+    // Configurar estado inicial apenas para mobile
+    const isMobile = window.innerWidth <= 1024;
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Fechar sidebar ao clicar em links em mobile
+  const handleMobileNavClick = () => {
+    if (window.innerWidth <= 1024) {
+      setSidebarOpen(false);
+    }
   };
 
   const toNumber = (v) => {
@@ -1867,6 +1902,12 @@ export default function Dashboard({ setUser }) {
   return (
     <>
       <div className="dashboard-container">
+        {/* Overlay para mobile */}
+        <div 
+          className={`sidebar-overlay ${sidebarOpen ? 'active' : ''}`}
+          onClick={closeSidebar}
+        ></div>
+        
         <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
           <div className="sidebar-header">
             <div className="logo">
@@ -1881,37 +1922,37 @@ export default function Dashboard({ setUser }) {
         <div className="sidebar-content">
           <ul className="nav-menu">
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+              <a href="#" className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-chart-bar"></i></span>
                 <span>Dashboard</span>
               </a>
             </li>
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'produtos' ? 'active' : ''}`} onClick={() => setActiveTab('produtos')}>
+              <a href="#" className={`nav-link ${activeTab === 'produtos' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('produtos'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-boxes"></i></span>
                 <span>Produtos</span>
               </a>
             </li>
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'vendas' ? 'active' : ''}`} onClick={() => setActiveTab('vendas')}>
+              <a href="#" className={`nav-link ${activeTab === 'vendas' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('vendas'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-cash-register"></i></span>
                 <span>Vendas</span>
               </a>
             </li>
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'historico' ? 'active' : ''}`} onClick={() => setActiveTab('historico')}>
+              <a href="#" className={`nav-link ${activeTab === 'historico' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('historico'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-chart-line"></i></span>
                 <span>Histórico</span>
               </a>
             </li>
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'custos' ? 'active' : ''}`} onClick={() => setActiveTab('custos')}>
+              <a href="#" className={`nav-link ${activeTab === 'custos' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('custos'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-calculator"></i></span>
                 <span>Cálculo de Custos</span>
               </a>
             </li>
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'configuracoes' ? 'active' : ''}`} onClick={() => setActiveTab('configuracoes')}>
+              <a href="#" className={`nav-link ${activeTab === 'configuracoes' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('configuracoes'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-cog"></i></span>
                 <span>Configurações</span>
               </a>
@@ -1926,11 +1967,11 @@ export default function Dashboard({ setUser }) {
         </div>
       </div>
 
-  <div className="main-content">
+  <div className={`main-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
       <div className="dashboard-header">
         <div className="header-content">
           <button 
-            className="menu-toggle" 
+            className={`menu-toggle ${sidebarOpen ? 'active' : ''}`}
             onClick={toggleSidebar}
             aria-label="Alternar menu lateral"
             aria-expanded={sidebarOpen}
@@ -2109,83 +2150,161 @@ export default function Dashboard({ setUser }) {
                   )}
                 </div>
                 <div className="products-table-container">
-                  <table 
-                    className="products-table"
-                    role="table"
-                    aria-label="Tabela de produtos cadastrados"
-                  >
-                    <thead>
-                      <tr role="row">
-                        <th role="columnheader">Código de Barras</th>
-                        <th role="columnheader">Nome do Produto</th>
-                        <th role="columnheader">Quantidade em Estoque</th>
-                        <th role="columnheader">Preço de Custo</th>
-                        <th role="columnheader">Preço de Venda</th>
-                        <th role="columnheader">Status</th>
-                        <th role="columnheader">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredProducts.length > 0 ? (
-                        filteredProducts.map((product) => (
-                          <tr key={product.id} role="row">
-                            <td role="cell">{product.barcode}</td>
-                            <td role="cell">{product.name}</td>
-                            <td role="cell">
-                              <span className={`quantity-badge ${product.quantity < 10 ? 'low-stock' : ''}`}>
-                                {product.quantity}
-                              </span>
-                            </td>
-                            <td role="cell">{formatCurrency(getCost(product))}</td>
-                            <td role="cell">{formatCurrency(product.sale_price)}</td>
-                            <td role="cell">
-                              <span className={`status-badge ${product.quantity < 10 ? 'warning' : 'success'}`}>
-                                {product.quantity < 10 ? 'Estoque Baixo' : 'Em Estoque'}
-                              </span>
-                            </td>
-                            <td className="actions-cell" role="cell">
-                              <button
-                                className="btn-action edit"
-                                onClick={() => {
-                                  setSelectedProduct(product);
-                                  setShowQuantityModal(true);
-                                }}
-                                title="Ajustar Quantidade"
-                                aria-label={`Ajustar quantidade do produto ${product.name}`}
-                              >
-                                <i className="fas fa-edit"></i>
-                              </button>
-                              <button
-                                className="btn-action edit"
-                                onClick={() => {
-                                  setSelectedProduct(product);
-                                  setShowPriceModal(true);
-                                }}
-                                title="Editar Custos e Preços"
-                                aria-label={`Editar custos e preços do produto ${product.name}`}
-                              >
-                                <i className="fas fa-dollar-sign"></i>
-                              </button>
-                              <button
-                                className="btn-action delete"
-                                onClick={() => handleDeleteProduct(product.id)}
-                                title="Excluir Produto"
-                                aria-label={`Excluir produto ${product.name}`}
-                              >
-                                <i className="fas fa-trash"></i>
-                              </button>
+                  <div className="table-responsive">
+                    <table 
+                      className="products-table"
+                      role="table"
+                      aria-label="Tabela de produtos cadastrados"
+                    >
+                      <thead>
+                        <tr role="row">
+                          <th role="columnheader">Código de Barras</th>
+                          <th role="columnheader">Nome do Produto</th>
+                          <th role="columnheader">Quantidade em Estoque</th>
+                          <th role="columnheader">Preço de Custo</th>
+                          <th role="columnheader">Preço de Venda</th>
+                          <th role="columnheader">Status</th>
+                          <th role="columnheader">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredProducts.length > 0 ? (
+                          filteredProducts.map((product) => (
+                            <tr key={product.id} role="row">
+                              <td role="cell">{product.barcode}</td>
+                              <td role="cell">{product.name}</td>
+                              <td role="cell">
+                                <span className={`quantity-badge ${product.quantity < 10 ? 'low-stock' : ''}`}>
+                                  {product.quantity}
+                                </span>
+                              </td>
+                              <td role="cell">{formatCurrency(getCost(product))}</td>
+                              <td role="cell">{formatCurrency(product.sale_price)}</td>
+                              <td role="cell">
+                                <span className={`status-badge ${product.quantity < 10 ? 'warning' : 'success'}`}>
+                                  {product.quantity < 10 ? 'Estoque Baixo' : 'Em Estoque'}
+                                </span>
+                              </td>
+                              <td className="actions-cell" role="cell">
+                                <button
+                                  className="btn-action edit"
+                                  onClick={() => {
+                                    setSelectedProduct(product);
+                                    setShowQuantityModal(true);
+                                  }}
+                                  title="Ajustar Quantidade"
+                                  aria-label={`Ajustar quantidade do produto ${product.name}`}
+                                >
+                                  <i className="fas fa-edit"></i>
+                                </button>
+                                <button
+                                  className="btn-action edit"
+                                  onClick={() => {
+                                    setSelectedProduct(product);
+                                    setShowPriceModal(true);
+                                  }}
+                                  title="Editar Custos e Preços"
+                                  aria-label={`Editar custos e preços do produto ${product.name}`}
+                                >
+                                  <i className="fas fa-dollar-sign"></i>
+                                </button>
+                                <button
+                                  className="btn-action delete"
+                                  onClick={() => handleDeleteProduct(product.id)}
+                                  title="Excluir Produto"
+                                  aria-label={`Excluir produto ${product.name}`}
+                                >
+                                  <i className="fas fa-trash"></i>
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="7" className="no-products">
+                              Nenhum produto cadastrado
                             </td>
                           </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="7" className="no-products">
-                            Nenhum produto cadastrado
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {/* Layout de Cards para Mobile */}
+                  <div className="products-mobile-cards">
+                    {filteredProducts.length > 0 ? (
+                      filteredProducts.map((product) => (
+                        <div key={product.id} className="product-card">
+                          <div className="product-card-header">
+                            <h3 className="product-card-title">{product.name}</h3>
+                            <span className="product-card-code">{product.barcode}</span>
+                          </div>
+                          
+                          <div className="product-card-info">
+                            <div className="product-info-item">
+                              <span className="product-info-label">Quantidade</span>
+                              <span className={`product-info-value quantity-badge ${product.quantity < 10 ? 'low-stock' : ''}`}>
+                                {product.quantity}
+                              </span>
+                            </div>
+                            
+                            <div className="product-info-item">
+                              <span className="product-info-label">Status</span>
+                              <span className={`product-info-value status-badge ${product.quantity < 10 ? 'warning' : 'success'}`}>
+                                {product.quantity < 10 ? 'Estoque Baixo' : 'Em Estoque'}
+                              </span>
+                            </div>
+                            
+                            <div className="product-info-item">
+                              <span className="product-info-label">Preço de Custo</span>
+                              <span className="product-info-value">{formatCurrency(getCost(product))}</span>
+                            </div>
+                            
+                            <div className="product-info-item">
+                              <span className="product-info-label">Preço de Venda</span>
+                              <span className="product-info-value">{formatCurrency(product.sale_price)}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="product-card-actions">
+                            <button
+                              className="btn btn-outline"
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setShowQuantityModal(true);
+                              }}
+                              title="Ajustar Quantidade"
+                            >
+                              <i className="fas fa-edit"></i> Qtd
+                            </button>
+                            <button
+                              className="btn btn-outline"
+                              onClick={() => {
+                                setSelectedProduct(product);
+                                setShowPriceModal(true);
+                              }}
+                              title="Editar Preços"
+                            >
+                              <i className="fas fa-dollar-sign"></i> Preço
+                            </button>
+                            <button
+                              className="btn btn-danger"
+                              onClick={() => handleDeleteProduct(product.id)}
+                              title="Excluir Produto"
+                            >
+                              <i className="fas fa-trash"></i>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="product-card">
+                        <div className="product-card-header">
+                          <h3 className="product-card-title">Nenhum produto cadastrado</h3>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
