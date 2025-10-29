@@ -18,15 +18,29 @@ export default function ForgotPassword({ switchToLogin }) {
    */
   const handleForgotPassword = async () => {
     if (!email) {
-      setMessage('Por favor, digite seu email');
+      setMessage('Por favor, digite seu e-mail');
       return;
     }
 
     setLoading(true);
     setMessage('');
 
+    // Detecta automaticamente a URL base correta
+    const getResetUrl = () => {
+      const origin = window.location.origin;
+      const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
+      
+      if (isLocalhost) {
+        // Em desenvolvimento local
+        return `${origin}/reset-password`;
+      } else {
+        // Em produção (GitHub Pages)
+        return `${origin}/controle-estoque/reset-password`;
+      }
+    };
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}${window.location.pathname}reset-password`,
+      redirectTo: getResetUrl(),
     });
 
     if (error) {
