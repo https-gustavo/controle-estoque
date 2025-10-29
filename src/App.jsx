@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import './App.css';
 import Login from './components/Login';
 import Signup from './components/Signup';
+import ForgotPassword from './components/ForgotPassword';
+import ResetPassword from './components/ResetPassword';
 import Dashboard from './components/Dashboard';
 import { supabase } from './supabaseClient';
 
@@ -39,6 +41,32 @@ function App() {
   return (
     <Router basename={(import.meta.env.BASE_URL || '/').replace(/\/$/, '')}>
       <Routes>
+        <Route
+          path="/forgot-password"
+          element={
+            user ? (
+              <Navigate to="/dashboard" />
+            ) : (
+              <div className="App">
+                {authChecked ? (
+                  <AuthWrapper showForgotPassword={true} setUser={setUser} />
+                ) : (
+                  <div style={{ padding: '2rem', textAlign: 'center' }}>Carregando...</div>
+                )}
+              </div>
+            )
+          }
+        />
+
+        <Route
+            path="/reset-password"
+            element={
+              <div className="App">
+                <ResetPassword onPasswordReset={() => window.location.href = '/controle-estoque/'} />
+              </div>
+            }
+          />
+
         <Route
           path="/"
           element={
@@ -92,19 +120,33 @@ function App() {
 }
 
 /**
- * Wrapper para alternar entre componentes de login e cadastro
- * Controla qual formulário de autenticação exibir
+ * Wrapper para alternar entre componentes de autenticação
+ * Controla qual formulário de autenticação exibir (login, cadastro ou recuperação)
  */
-const AuthWrapper = ({ showSignup, setUser }) => {
-  const [isSignup, setIsSignup] = useState(showSignup);
+const AuthWrapper = ({ showSignup, showForgotPassword, setUser }) => {
+  const [currentView, setCurrentView] = useState(
+    showForgotPassword ? 'forgot' : showSignup ? 'signup' : 'login'
+  );
+
+  const switchToLogin = () => setCurrentView('login');
+  const switchToSignup = () => setCurrentView('signup');
+  const switchToForgotPassword = () => setCurrentView('forgot');
 
   return (
     <div className="auth-wrapper">
       <h1>ESTOQUE ONLINE</h1>
-      {isSignup ? (
-        <Signup switchToLogin={() => setIsSignup(false)} setUser={setUser} />
-      ) : (
-        <Login switchToSignup={() => setIsSignup(true)} setUser={setUser} />
+      {currentView === 'signup' && (
+        <Signup switchToLogin={switchToLogin} setUser={setUser} />
+      )}
+      {currentView === 'login' && (
+        <Login 
+          switchToSignup={switchToSignup} 
+          switchToForgotPassword={switchToForgotPassword}
+          setUser={setUser} 
+        />
+      )}
+      {currentView === 'forgot' && (
+        <ForgotPassword switchToLogin={switchToLogin} />
       )}
     </div>
   );

@@ -5,18 +5,24 @@ import './Dashboard.css';
 import { useNavigate } from 'react-router-dom';
 
 /**
- * Dashboard principal do sistema de controle de estoque
- * Gerencia produtos, vendas, histórico e configurações da loja
+ * Dashboard Principal - Sistema de Controle de Estoque
+ * 
+ * Componente principal que gerencia:
+ * - Produtos e estoque
+ * - Vendas e carrinho
+ * - Relatórios e estatísticas
+ * - Configurações da empresa
  */
 export default function Dashboard({ setUser }) {
-  // Estados principais do sistema
+  
+  // Estados dos produtos
   const [products, setProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [stockFilter, setStockFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('');
   
-  // Controle de modais
+  // Estados dos modais
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [showQuantityModal, setShowQuantityModal] = useState(false);
@@ -25,7 +31,7 @@ export default function Dashboard({ setUser }) {
   const [showSaleDetailsModal, setShowSaleDetailsModal] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
   
-  // Estados para edição de produtos
+  // Estados de edição
   const [selectedSaleGroup, setSelectedSaleGroup] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [customValue, setCustomValue] = useState('');
@@ -33,32 +39,31 @@ export default function Dashboard({ setUser }) {
   const [editSalePrice, setEditSalePrice] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
   
-  // Carrinho de vendas
+  // Estados do carrinho de vendas
   const [salesCart, setSalesCart] = useState([]);
   const [saleDiscount, setSaleDiscount] = useState('');
   const [saleSearch, setSaleSearch] = useState('');
-  const [saleBarcode, setSaleBarcode] = useState('');
   const [saleSuggestions, setSaleSuggestions] = useState([]);
   const [saleSuggestionIndex, setSaleSuggestionIndex] = useState(-1);
   
-  // Histórico de vendas
+  // Estados do histórico de vendas
   const [salesHistoryGroups, setSalesHistoryGroups] = useState([]);
   const [historyFilter, setHistoryFilter] = useState('');
   const [historyDateFilter, setHistoryDateFilter] = useState('all');
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPageSize, setHistoryPageSize] = useState(10);
   
-  // Estatísticas e métricas
+  // Estados das estatísticas
   const [totalSales, setTotalSales] = useState(0);
   const [totalProducts, setTotalProducts] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
   
-  // Interface e navegação
+  // Estados da interface
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [userId, setUserId] = useState(null);
   
-  // Configurações de tema
+  // Estado do tema
   const [darkMode, setDarkMode] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('darkMode') || 'false');
@@ -76,7 +81,7 @@ export default function Dashboard({ setUser }) {
     logo: ''
   });
 
-  // Calculadora de custos
+  // Estados da calculadora de custos
   const [costBase, setCostBase] = useState('');
   const [freight, setFreight] = useState('');
   const [packaging, setPackaging] = useState('');
@@ -593,12 +598,21 @@ export default function Dashboard({ setUser }) {
   }, [products, searchTerm, filters, showAdvancedFilters]);
 
   /**
-   * Carrega todos os produtos do usuário e calcula estatísticas
-   * Inclui fallback para problemas de ordenação no Supabase
+   * 🔄 BUSCAR PRODUTOS - A função que traz todos os seus produtos
+   * 
+   * Esta é uma das funções mais importantes! Ela:
+   * - 📥 Busca todos os produtos do banco de dados
+   * - 📊 Calcula as estatísticas (total de vendas, produtos, etc.)
+   * - 🛡️ Tem proteção contra erros do Supabase
+   * - ⚡ Atualiza a interface automaticamente
+   * 
+   * É chamada sempre que algo muda nos produtos!
    */
   const fetchProducts = async () => {
     setLoading(prev => ({ ...prev, products: true }));
+    
     try {
+      // Busca os produtos do usuário, ordenados por nome
       const { data, error } = await supabase
         .from('products')
         .select('*')
@@ -607,7 +621,7 @@ export default function Dashboard({ setUser }) {
       
       if (error) {
         console.error('Erro ao buscar produtos:', error);
-        // Se ordenar por "name" falhar, busca sem ordenação
+        // Se der erro na ordenação, tenta sem ordenar (fallback)
         if (/name/i.test(error.message || '')) {
           const { data: dataNoOrder, error: errNoOrder } = await supabase
             .from('products')
@@ -618,10 +632,11 @@ export default function Dashboard({ setUser }) {
           }
         }
       } else {
+        // Sucesso! Atualiza a lista de produtos
         setProducts(data || []);
       }
       
-      // Calcula o total de vendas para as estatísticas do dashboard
+      // Calcula o total de vendas para o dashboard
       const { data: salesData, error: salesError } = await supabase
         .from('sales')
         .select('total')
@@ -632,6 +647,7 @@ export default function Dashboard({ setUser }) {
         setTotalSales(total);
       }
     } finally {
+      // 🏁 Para de mostrar o carregamento
       setLoading(prev => ({ ...prev, products: false }));
     }
   };
@@ -908,22 +924,6 @@ export default function Dashboard({ setUser }) {
     setSaleSuggestionIndex(-1);
   };
 
-  const handleAddByBarcode = () => {
-    const v = saleBarcode.trim();
-    if (!v) return;
-    const match = products.find(p => String(p.barcode) === v);
-    if (!match) { showToast('error', 'Código não encontrado'); return; }
-    addProductToCart(match, 1);
-    setSaleBarcode('');
-  };
-
-  const handleBarcodeKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAddByBarcode();
-    }
-  };
-
   const handleSearchKeyDown = (e) => {
     if (!saleSuggestions || saleSuggestions.length === 0) {
       if (e.key === 'Enter') { handleAddBySearch(); }
@@ -1094,13 +1094,56 @@ export default function Dashboard({ setUser }) {
     if (activeTab === 'vendas') fetchSalesHistory();
   }, [activeTab, userId]);
 
+  /**
+   * Função de logout do sistema
+   * 
+   * Realiza o logout seguro do usuário:
+   * - Verifica se há sessão ativa
+   * - Faz logout no Supabase
+   * - Limpa dados locais
+   * - Redireciona para login
+   */
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Erro ao fazer logout:', error);
-    } else {
+    try {
+      console.log('Iniciando logout...');
+      
+      // Verifica se há uma sessão ativa antes de tentar fazer logout
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        // Só tenta fazer logout se houver sessão ativa
+        const { error } = await supabase.auth.signOut();
+        
+        if (error && !error.message.includes('Auth session missing')) {
+          console.error('Erro ao fazer logout:', error);
+          showToast('error', 'Erro ao sair: ' + error.message);
+          return;
+        }
+      } else {
+        console.log('Nenhuma sessão ativa encontrada, prosseguindo com limpeza local');
+      }
+      
+      // Limpa o estado do usuário
       setUser(null);
-      navigate('/');
+      
+      // Limpa dados locais
+      localStorage.removeItem('supabase.auth.token');
+      localStorage.removeItem('sb-' + supabase.supabaseUrl.split('//')[1] + '-auth-token');
+      
+      console.log('Logout realizado com sucesso');
+      
+      // Redireciona para a tela de login
+      navigate('/', { replace: true });
+      
+    } catch (err) {
+      console.error('Erro inesperado no logout:', err);
+      
+      // Mesmo com erro, limpa tudo e redireciona
+      setUser(null);
+      localStorage.clear();
+      navigate('/', { replace: true });
+      
+      showToast('error', 'Sessão encerrada (com limpeza forçada)');
     }
   };
 
@@ -2155,37 +2198,169 @@ export default function Dashboard({ setUser }) {
                       className="products-table"
                       role="table"
                       aria-label="Tabela de produtos cadastrados"
+                      style={{
+                        width: '100% !important',
+                        borderCollapse: 'collapse !important',
+                        backgroundColor: '#ffffff !important',
+                        border: '1px solid #e5e7eb !important',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06) !important'
+                      }}
                     >
                       <thead>
-                        <tr role="row">
-                          <th role="columnheader">Código de Barras</th>
-                          <th role="columnheader">Nome do Produto</th>
-                          <th role="columnheader">Quantidade em Estoque</th>
-                          <th role="columnheader">Preço de Custo</th>
-                          <th role="columnheader">Preço de Venda</th>
-                          <th role="columnheader">Status</th>
-                          <th role="columnheader">Ações</th>
+                        <tr role="row" style={{
+                          backgroundColor: '#ffffff !important',
+                          borderBottom: '1px solid #e5e7eb !important'
+                        }}>
+                          <th role="columnheader" style={{
+                            padding: '12px 16px !important',
+                            textAlign: 'left !important',
+                            fontWeight: '600 !important',
+                            fontSize: '0.875rem !important',
+                            textTransform: 'uppercase !important',
+                            letterSpacing: '0.05em !important',
+                            border: '1px solid #e5e7eb !important',
+                            color: '#111827 !important',
+                            backgroundColor: '#ffffff !important'
+                          }}>Código de Barras</th>
+                          <th role="columnheader" style={{
+                            padding: '12px 16px !important',
+                            textAlign: 'left !important',
+                            fontWeight: '600 !important',
+                            fontSize: '0.875rem !important',
+                            textTransform: 'uppercase !important',
+                            letterSpacing: '0.05em !important',
+                            border: '1px solid #e5e7eb !important',
+                            color: '#111827 !important',
+                            backgroundColor: '#ffffff !important'
+                          }}>Nome do Produto</th>
+                          <th role="columnheader" style={{
+                            padding: '12px 16px !important',
+                            textAlign: 'left !important',
+                            fontWeight: '600 !important',
+                            fontSize: '0.875rem !important',
+                            textTransform: 'uppercase !important',
+                            letterSpacing: '0.05em !important',
+                            border: '1px solid #e5e7eb !important',
+                            color: '#111827 !important',
+                            backgroundColor: '#ffffff !important'
+                          }}>Quantidade em Estoque</th>
+                          <th role="columnheader" style={{
+                            padding: '12px 16px !important',
+                            textAlign: 'left !important',
+                            fontWeight: '600 !important',
+                            fontSize: '0.875rem !important',
+                            textTransform: 'uppercase !important',
+                            letterSpacing: '0.05em !important',
+                            border: '1px solid #e5e7eb !important',
+                            color: '#111827 !important',
+                            backgroundColor: '#ffffff !important'
+                          }}>Preço de Custo</th>
+                          <th role="columnheader" style={{
+                            padding: '12px 16px !important',
+                            textAlign: 'left !important',
+                            fontWeight: '600 !important',
+                            fontSize: '0.875rem !important',
+                            textTransform: 'uppercase !important',
+                            letterSpacing: '0.05em !important',
+                            border: '1px solid #e5e7eb !important',
+                            color: '#111827 !important',
+                            backgroundColor: '#ffffff !important'
+                          }}>Preço de Venda</th>
+                          <th role="columnheader" style={{
+                            padding: '12px 16px !important',
+                            textAlign: 'left !important',
+                            fontWeight: '600 !important',
+                            fontSize: '0.875rem !important',
+                            textTransform: 'uppercase !important',
+                            letterSpacing: '0.05em !important',
+                            border: '1px solid #e5e7eb !important',
+                            color: '#111827 !important',
+                            backgroundColor: '#ffffff !important'
+                          }}>Status</th>
+                          <th role="columnheader" style={{
+                            padding: '12px 16px !important',
+                            textAlign: 'left !important',
+                            fontWeight: '600 !important',
+                            fontSize: '0.875rem !important',
+                            textTransform: 'uppercase !important',
+                            letterSpacing: '0.05em !important',
+                            border: '1px solid #e5e7eb !important',
+                            color: '#111827 !important',
+                            backgroundColor: '#ffffff !important'
+                          }}>Ações</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredProducts.length > 0 ? (
-                          filteredProducts.map((product) => (
-                            <tr key={product.id} role="row">
-                              <td role="cell">{product.barcode}</td>
-                              <td role="cell">{product.name}</td>
-                              <td role="cell">
+                          filteredProducts.map((product, index) => (
+                            <tr key={product.id} role="row" style={{
+                              backgroundColor: `${index % 2 === 0 ? '#ffffff' : '#f9fafb'} !important`,
+                              borderBottom: '1px solid #e5e7eb !important',
+                              transition: 'background-color 0.2s ease !important'
+                            }}
+                            onMouseEnter={(e) => e.target.closest('tr').style.backgroundColor = '#f3f4f6'}
+                            onMouseLeave={(e) => e.target.closest('tr').style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f9fafb'}
+                            >
+                              <td role="cell" style={{
+                                padding: '12px 16px !important',
+                                border: '1px solid #e5e7eb !important',
+                                color: '#111827 !important',
+                                fontSize: '0.875rem !important',
+                                backgroundColor: 'transparent !important'
+                              }}>{product.barcode}</td>
+                              <td role="cell" style={{
+                                padding: '12px 16px !important',
+                                border: '1px solid #e5e7eb !important',
+                                color: '#111827 !important',
+                                fontSize: '0.875rem !important',
+                                fontWeight: '500 !important',
+                                backgroundColor: 'transparent !important'
+                              }}>{product.name}</td>
+                              <td role="cell" style={{
+                                padding: '12px 16px !important',
+                                border: '1px solid #e5e7eb !important',
+                                color: '#111827 !important',
+                                fontSize: '0.875rem !important',
+                                backgroundColor: 'transparent !important'
+                              }}>
                                 <span className={`quantity-badge ${product.quantity < 10 ? 'low-stock' : ''}`}>
                                   {product.quantity}
                                 </span>
                               </td>
-                              <td role="cell">{formatCurrency(getCost(product))}</td>
-                              <td role="cell">{formatCurrency(product.sale_price)}</td>
-                              <td role="cell">
+                              <td role="cell" style={{
+                                padding: '12px 16px !important',
+                                border: '1px solid #e5e7eb !important',
+                                color: '#111827 !important',
+                                fontSize: '0.875rem !important',
+                                fontWeight: '500 !important',
+                                backgroundColor: 'transparent !important'
+                              }}>{formatCurrency(getCost(product))}</td>
+                              <td role="cell" style={{
+                                padding: '12px 16px !important',
+                                border: '1px solid #e5e7eb !important',
+                                color: '#111827 !important',
+                                fontSize: '0.875rem !important',
+                                fontWeight: '500 !important',
+                                backgroundColor: 'transparent !important'
+                              }}>{formatCurrency(product.sale_price)}</td>
+                              <td role="cell" style={{
+                                padding: '12px 16px !important',
+                                border: '1px solid #e5e7eb !important',
+                                color: '#111827 !important',
+                                fontSize: '0.875rem !important',
+                                backgroundColor: 'transparent !important'
+                              }}>
                                 <span className={`status-badge ${product.quantity < 10 ? 'warning' : 'success'}`}>
                                   {product.quantity < 10 ? 'Estoque Baixo' : 'Em Estoque'}
                                 </span>
                               </td>
-                              <td className="actions-cell" role="cell">
+                              <td className="actions-cell" role="cell" style={{
+                                padding: '12px 16px !important',
+                                border: '1px solid #e5e7eb !important',
+                                color: '#111827 !important',
+                                fontSize: '0.875rem !important',
+                                backgroundColor: 'transparent !important'
+                              }}>
                                 <button
                                   className="btn-action edit"
                                   onClick={() => {
@@ -2194,6 +2369,28 @@ export default function Dashboard({ setUser }) {
                                   }}
                                   title="Ajustar Quantidade"
                                   aria-label={`Ajustar quantidade do produto ${product.name}`}
+                                  style={{
+                                    backgroundColor: '#ffffff !important',
+                                    color: '#6b7280 !important',
+                                    border: '1px solid #e5e7eb !important',
+                                    borderRadius: '6px !important',
+                                    padding: '6px 8px !important',
+                                    marginRight: '4px !important',
+                                    cursor: 'pointer !important',
+                                    fontSize: '0.75rem !important',
+                                    transition: 'all 0.2s ease !important',
+                                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06) !important'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.backgroundColor = '#f9fafb';
+                                    e.target.style.color = '#111827';
+                                    e.target.style.borderColor = '#d1d5db';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.backgroundColor = '#ffffff';
+                                    e.target.style.color = '#6b7280';
+                                    e.target.style.borderColor = '#e5e7eb';
+                                  }}
                                 >
                                   <i className="fas fa-edit"></i>
                                 </button>
@@ -2205,6 +2402,28 @@ export default function Dashboard({ setUser }) {
                                   }}
                                   title="Editar Custos e Preços"
                                   aria-label={`Editar custos e preços do produto ${product.name}`}
+                                  style={{
+                                    backgroundColor: '#ffffff !important',
+                                    color: '#6b7280 !important',
+                                    border: '1px solid #e5e7eb !important',
+                                    borderRadius: '6px !important',
+                                    padding: '6px 8px !important',
+                                    marginRight: '4px !important',
+                                    cursor: 'pointer !important',
+                                    fontSize: '0.75rem !important',
+                                    transition: 'all 0.2s ease !important',
+                                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06) !important'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.backgroundColor = '#f9fafb';
+                                    e.target.style.color = '#111827';
+                                    e.target.style.borderColor = '#d1d5db';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.backgroundColor = '#ffffff';
+                                    e.target.style.color = '#6b7280';
+                                    e.target.style.borderColor = '#e5e7eb';
+                                  }}
                                 >
                                   <i className="fas fa-dollar-sign"></i>
                                 </button>
@@ -2213,6 +2432,27 @@ export default function Dashboard({ setUser }) {
                                   onClick={() => handleDeleteProduct(product.id)}
                                   title="Excluir Produto"
                                   aria-label={`Excluir produto ${product.name}`}
+                                  style={{
+                                    backgroundColor: '#ffffff !important',
+                                    color: '#ef4444 !important',
+                                    border: '1px solid #fecaca !important',
+                                    borderRadius: '6px !important',
+                                    padding: '6px 8px !important',
+                                    cursor: 'pointer !important',
+                                    fontSize: '0.75rem !important',
+                                    transition: 'all 0.2s ease !important',
+                                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06) !important'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.backgroundColor = '#fef2f2';
+                                    e.target.style.color = '#dc2626';
+                                    e.target.style.borderColor = '#fca5a5';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.backgroundColor = '#ffffff';
+                                    e.target.style.color = '#ef4444';
+                                    e.target.style.borderColor = '#fecaca';
+                                  }}
                                 >
                                   <i className="fas fa-trash"></i>
                                 </button>
@@ -2221,7 +2461,15 @@ export default function Dashboard({ setUser }) {
                           ))
                         ) : (
                           <tr>
-                            <td colSpan="7" className="no-products">
+                            <td colSpan="7" className="no-products" style={{
+                              padding: '40px 20px !important',
+                              textAlign: 'center !important',
+                              color: '#000000 !important',
+                              fontSize: '1rem !important',
+                              fontWeight: '500 !important',
+                              border: '1px solid #000000 !important',
+                              backgroundColor: '#ffffff !important'
+                            }}>
                               Nenhum produto cadastrado
                             </td>
                           </tr>
@@ -2317,24 +2565,6 @@ export default function Dashboard({ setUser }) {
               </div>
               <div className="sale-builder card">
                 <div className="quick-grid">
-                  <div className="quick-block card subtle">
-                    <div className="form-group">
-                      <label htmlFor="barcodeInput">Código de Barras</label>
-                      <input
-                        id="barcodeInput"
-                        type="text"
-                        value={saleBarcode}
-                        onChange={(e) => setSaleBarcode(e.target.value)}
-                        onKeyDown={handleBarcodeKeyDown}
-                        placeholder="Digite ou escaneie e pressione Enter"
-                        className="form-input"
-                      />
-                    </div>
-                    <button className="btn-primary" onClick={handleAddByBarcode} style={{ alignSelf: 'end' }}>
-                      <i className="fas fa-barcode"></i>
-                      Adicionar por código
-                    </button>
-                  </div>
                   <div className="quick-block card">
                     <div className="form-group">
                       <label htmlFor="quickSaleSearch">Busca por Nome/Código</label>
@@ -2814,22 +3044,154 @@ export default function Dashboard({ setUser }) {
                       <i className="fas fa-calculator"></i>
                       <span>Resumo da Entrada</span>
                     </div>
-                    <div className="totals-grid">
-                      <div className="total-item">
-                        <div className="total-label">Itens</div>
-                        <div className="total-value">{totals.qty}</div>
+                    <div className="totals-grid" style={{
+                      display: 'flex',
+                      flexDirection: 'row',
+                      gap: '1rem',
+                      flexWrap: 'nowrap',
+                      overflowX: 'auto',
+                      justifyContent: 'flex-start',
+                      alignItems: 'stretch'
+                    }}>
+                      <div className="total-item" style={{
+                        background: '#ffffff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '10px',
+                        padding: '1rem',
+                        textAlign: 'center',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        flex: '0 0 auto',
+                        width: '160px',
+                        minWidth: '160px',
+                        maxWidth: '160px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center'
+                      }}>
+                        <div className="total-label" style={{
+                          fontSize: '0.75rem',
+                          color: '#6b7280',
+                          marginBottom: '0.5rem',
+                          fontWeight: '500',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          lineHeight: '1.2'
+                        }}>📦 Itens</div>
+                        <div className="total-value" style={{
+                          fontSize: '1.125rem',
+                          fontWeight: '700',
+                          color: '#111827',
+                          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+                          lineHeight: '1.1'
+                        }}>{totals.qty}</div>
                       </div>
-                      <div className="total-item">
-                        <div className="total-label">Custo Total</div>
-                        <div className="total-value cost">{formatCurrency(totals.cost)}</div>
+                      <div className="total-item" style={{
+                        background: '#ffffff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '10px',
+                        padding: '1rem',
+                        textAlign: 'center',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        flex: '0 0 auto',
+                        width: '160px',
+                        minWidth: '160px',
+                        maxWidth: '160px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center'
+                      }}>
+                        <div className="total-label" style={{
+                          fontSize: '0.75rem',
+                          color: '#6b7280',
+                          marginBottom: '0.5rem',
+                          fontWeight: '500',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          lineHeight: '1.2'
+                        }}>💰 Custo Total</div>
+                        <div className="total-value cost" style={{
+                          fontSize: '1.125rem',
+                          fontWeight: '700',
+                          color: '#111827',
+                          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+                          lineHeight: '1.1'
+                        }}>{formatCurrency(totals.cost)}</div>
                       </div>
-                      <div className="total-item">
-                        <div className="total-label">Venda Total</div>
-                        <div className="total-value sale">{formatCurrency(totals.value)}</div>
+                      <div className="total-item" style={{
+                        background: '#ffffff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '10px',
+                        padding: '1rem',
+                        textAlign: 'center',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        flex: '0 0 auto',
+                        width: '160px',
+                        minWidth: '160px',
+                        maxWidth: '160px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center'
+                      }}>
+                        <div className="total-label" style={{
+                          fontSize: '0.75rem',
+                          color: '#6b7280',
+                          marginBottom: '0.5rem',
+                          fontWeight: '500',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          lineHeight: '1.2'
+                        }}>💵 Venda Total</div>
+                        <div className="total-value sale" style={{
+                          fontSize: '1.125rem',
+                          fontWeight: '700',
+                          color: '#111827',
+                          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+                          lineHeight: '1.1'
+                        }}>{formatCurrency(totals.value)}</div>
                       </div>
-                      <div className="total-item">
-                        <div className="total-label">Margem</div>
-                        <div className="total-value margin">{formatCurrency(totals.margin)}</div>
+                      <div className="total-item" style={{
+                        background: '#ffffff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '10px',
+                        padding: '1rem',
+                        textAlign: 'center',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        flex: '0 0 auto',
+                        width: '160px',
+                        minWidth: '160px',
+                        maxWidth: '160px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center'
+                      }}>
+                        <div className="total-label" style={{
+                          fontSize: '0.75rem',
+                          color: '#6b7280',
+                          marginBottom: '0.5rem',
+                          fontWeight: '500',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          lineHeight: '1.2'
+                        }}>📈 Margem</div>
+                        <div className="total-value margin" style={{
+                          fontSize: '1.125rem',
+                          fontWeight: '700',
+                          color: '#111827',
+                          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+                          lineHeight: '1.1'
+                        }}>{formatCurrency(totals.margin)}</div>
                       </div>
                     </div>
                   </div>

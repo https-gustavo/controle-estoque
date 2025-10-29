@@ -107,6 +107,7 @@
   min-height: 100%;
   background: linear-gradient(135deg, var(--primary-color), #60a5fa);
   color: #fff;
+  overflow: hidden; /* Evita problemas de overflow em mobile */
 }
 
 .login-hero::after {
@@ -133,6 +134,8 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-height: 100%; /* Garante altura mínima */
+  justify-content: center; /* Centraliza conteúdo verticalmente */
 }
 
 .login-logo {
@@ -275,8 +278,192 @@
   color: var(--primary-color);
 }
 
+/* ==========================================
+   RESPONSIVIDADE MOBILE - Correções completas
+========================================== */
+
+/* Tablets e telas médias */
+@media (max-width: 768px) {
+  .login-background {
+    padding: 16px;
+    min-height: 100vh;
+  }
+  
+  .login-card {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 8px;
+  }
+  
+  .login-card.grid {
+    display: block;
+    grid-template-columns: none;
+  }
+  
+  .login-hero {
+    min-height: auto;
+    padding: 0;
+  }
+  
+  .hero-content {
+    padding: 24px;
+    text-align: center;
+    min-height: auto;
+    justify-content: flex-start;
+  }
+  
+  .login-content {
+    padding: 24px;
+  }
+  
+  .login-logo {
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  
+  .hero-highlights {
+    display: none; /* Oculta highlights em mobile para economizar espaço */
+  }
+  
+  /* Ajustes específicos para formulário em tablet */
+  .form-group {
+    margin-bottom: 16px;
+  }
+  
+  .form-input {
+    padding: 14px 16px 14px 46px;
+    font-size: 16px;
+  }
+  
+  .input-icon {
+    left: 16px !important;
+  }
+}
+
+/* Smartphones */
 @media (max-width: 480px) {
-  .login-card { padding: 24px; }
+  .login-background {
+    padding: 12px;
+    align-items: flex-start;
+    padding-top: 20px;
+  }
+  
+  .login-card { 
+    padding: 0;
+    border-radius: 6px;
+    max-width: 100%;
+    width: 100%;
+  }
+  
+  .hero-content {
+    padding: 20px 16px;
+    min-height: auto;
+    justify-content: flex-start;
+  }
+  
+  .login-content {
+    padding: 20px 16px;
+  }
+  
+  .login-logo h1 {
+    font-size: 20px;
+  }
+  
+  .login-subtitle {
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  
+  .form-group {
+    margin-bottom: 18px;
+  }
+  
+  .form-input {
+    font-size: 16px; /* Evita zoom no iOS */
+    padding: 12px 14px 12px 44px;
+    border-radius: 8px;
+  }
+  
+  .input-icon {
+    left: 14px !important;
+  }
+  
+  .btn-primary {
+    padding: 12px;
+    font-size: 16px;
+    border-radius: 8px;
+    margin-top: 8px;
+  }
+  
+  .auth-switch {
+    font-size: 14px;
+    text-align: center;
+    margin-top: 16px;
+  }
+  
+  .forgot-password-link {
+    font-size: 14px;
+    padding: 8px 12px;
+    margin-top: 12px;
+  }
+  
+  /* Ajustes para mensagens de autenticação */
+  .auth-message {
+    font-size: 14px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+  }
+}
+
+/* Smartphones pequenos */
+@media (max-width: 360px) {
+  .login-background {
+    padding: 8px;
+    padding-top: 16px;
+  }
+  
+  .hero-content {
+    padding: 16px 12px;
+  }
+  
+  .login-content {
+    padding: 16px 12px;
+  }
+  
+  .login-logo h1 {
+    font-size: 18px;
+  }
+  
+  .login-subtitle {
+    font-size: 13px;
+  }
+  
+  .form-group {
+    margin-bottom: 16px;
+  }
+  
+  .form-input {
+    padding: 10px 12px 10px 40px;
+    font-size: 16px;
+  }
+  
+  .input-icon {
+    left: 12px !important;
+  }
+  
+  .btn-primary {
+    padding: 10px;
+    font-size: 15px;
+  }
+  
+  .auth-switch {
+    font-size: 13px;
+  }
+  
+  .forgot-password-link {
+    font-size: 13px;
+    padding: 6px 10px;
+  }
 }
 
 /* ==========================================
@@ -352,4 +539,204 @@
 
 .login-background {
   background: transparent !important;
+}
+
+/* ==========================
+   Estilos para Recuperação de Senha
+========================== */
+
+/* Indicador de força da senha */
+.password-strength {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.strength-bar {
+  flex: 1;
+  height: 4px;
+  background-color: #e5e7eb;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.strength-fill {
+  height: 100%;
+  transition: width 0.3s ease, background-color 0.3s ease;
+  border-radius: 2px;
+}
+
+.strength-text {
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 60px;
+  text-align: right;
+}
+
+/* Mensagem de senhas não coincidem */
+.password-mismatch {
+  margin-top: 6px;
+  color: #ef4444;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Requisitos da senha */
+.password-requirements {
+  margin: 16px 0;
+  padding: 12px;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.password-requirements p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.password-requirements ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.password-requirements li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 12px;
+  color: #64748b;
+  transition: color 0.2s ease;
+}
+
+.password-requirements li.valid {
+  color: #059669;
+}
+
+.password-requirements li i {
+  width: 12px;
+  font-size: 10px;
+}
+
+/* Mensagens de sucesso específicas */
+.success-message {
+  text-align: center;
+  padding: 20px;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.success-message i {
+  font-size: 24px;
+  color: #059669;
+  margin-bottom: 8px;
+}
+
+.success-message p {
+  margin: 0;
+  color: #065f46;
+  font-weight: 500;
+}
+
+/* Mensagens de erro específicas */
+.error-message {
+  text-align: center;
+  padding: 20px;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.error-message i {
+  font-size: 24px;
+  color: #dc2626;
+  margin-bottom: 8px;
+}
+
+.error-message p {
+  margin: 0;
+  color: #991b1b;
+  font-weight: 500;
+}
+
+/* Informações de reenvio */
+.resend-info {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Botão de alternância de senha */
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.2s ease;
+}
+
+.password-toggle:hover {
+  color: var(--primary-color);
+}
+
+/* Ajustes para inputs com botão de alternância */
+.input-wrapper input[type="password"],
+.input-wrapper input[type="text"] {
+  padding-right: 40px;
+}
+
+/* Estados de loading para botões */
+.login-btn.loading {
+  pointer-events: none;
+}
+
+.login-btn.loading i.fa-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Link "Esqueci minha senha" */
+.forgot-password {
+  text-align: center;
+  font-size: 14px;
+  color: var(--primary-color);
+  cursor: pointer;
+  margin: 0 0 12px 0;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.forgot-password:hover {
+  background-color: rgba(79, 70, 229, 0.05);
+  color: var(--primary-hover);
+}
+
+.forgot-password i {
+  font-size: 12px;
 }

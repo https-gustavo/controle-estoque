@@ -7,7 +7,7 @@ import './Login.css';
  * Componente de login com interface moderna
  * Inclui validação, toggle de senha e navegação automática
  */
-export default function Login({ switchToSignup, setUser }) {
+export default function Login({ switchToSignup, switchToForgotPassword, setUser }) {
   // Estados do formulário de login
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -132,6 +132,10 @@ export default function Login({ switchToSignup, setUser }) {
               </button>
 
               <div className="login-footer">
+                <p className="forgot-password" onClick={switchToForgotPassword}>
+                  <i className="fas fa-key"></i>
+                  Esqueci minha senha
+                </p>
                 <p className="auth-switch" onClick={switchToSignup}>
                   Ainda não tem conta? <span>Criar conta</span>
                 </p>
