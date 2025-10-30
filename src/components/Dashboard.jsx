@@ -731,11 +731,12 @@ export default function Dashboard({ setUser }) {
       return;
     }
     
-    // Preparar objeto de atualização apenas com campos preenchidos
+    // Preparar objeto de atualização usando last_purchase_value em vez de cost_price
     const updateData = {};
     
     if (editCostPrice && editCostPrice.trim() !== '') {
-      updateData.cost_price = parseFloat(editCostPrice);
+      // Usar last_purchase_value em vez de cost_price para evitar problemas de cache
+      updateData.last_purchase_value = parseFloat(editCostPrice);
     }
     
     if (editSalePrice && editSalePrice.trim() !== '') {
@@ -748,7 +749,7 @@ export default function Dashboard({ setUser }) {
       return;
     }
     
-    console.log('Tentando atualizar produto:', {
+    console.log('Tentando atualizar produto (usando last_purchase_value):', {
       productId: selectedProduct.id,
       userId: userId,
       updateData: updateData
@@ -770,34 +771,8 @@ export default function Dashboard({ setUser }) {
           hint: error.hint,
           code: error.code
         });
-        
-        // Tentar com fallback para last_purchase_value se cost_price falhar
-        if (error.message && error.message.includes('cost_price')) {
-          console.log('Tentando fallback com last_purchase_value...');
-          const fallbackData = { ...updateData };
-          if (fallbackData.cost_price) {
-            fallbackData.last_purchase_value = fallbackData.cost_price;
-            delete fallbackData.cost_price;
-          }
-          
-          const { data: fallbackResult, error: fallbackError } = await supabase
-            .from('products')
-            .update(fallbackData)
-            .eq('id', selectedProduct.id)
-            .eq('user_id', userId)
-            .select();
-            
-          if (fallbackError) {
-            console.error('Erro no fallback:', fallbackError);
-            showToast(`Erro ao atualizar preços: ${fallbackError.message}`, 'error');
-            return;
-          } else {
-            console.log('Fallback bem-sucedido:', fallbackResult);
-          }
-        } else {
-          showToast(`Erro ao atualizar preços: ${error.message}`, 'error');
-          return;
-        }
+        showToast(`Erro ao atualizar preços: ${error.message}`, 'error');
+        return;
       } else {
         console.log('Atualização bem-sucedida:', data);
       }
