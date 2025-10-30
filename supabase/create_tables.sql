@@ -98,10 +98,11 @@ CREATE POLICY "Users can update own store_settings" ON store_settings
 CREATE POLICY "Users can delete own store_settings" ON store_settings
   FOR DELETE USING (auth.uid() = user_id);
 
--- Remover triggers e função existentes se houver
+-- Remover triggers e função existentes se houver (com CASCADE para dependências)
 DROP TRIGGER IF EXISTS update_products_updated_at ON products;
 DROP TRIGGER IF EXISTS update_store_settings_updated_at ON store_settings;
-DROP FUNCTION IF EXISTS update_updated_at_column();
+DROP TRIGGER IF EXISTS update_categories_updated_at ON categories;
+DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
 
 -- Função para atualizar updated_at automaticamente
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -117,4 +118,8 @@ CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_store_settings_updated_at BEFORE UPDATE ON store_settings
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Recriar trigger para categories se a tabela existir
+CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON categories
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
