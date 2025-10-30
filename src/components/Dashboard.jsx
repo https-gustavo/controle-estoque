@@ -437,13 +437,42 @@ export default function Dashboard({ setUser }) {
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!cancelled) setUserId(session?.user?.id ?? null);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Erro ao obter sessão:', error);
+          showToast('Erro de autenticação. Faça login novamente.', 'error');
+          return;
+        }
+        
+        if (!cancelled) {
+          const userId = session?.user?.id ?? null;
+          console.log('Sessão inicializada:', { userId, session: !!session });
+          setUserId(userId);
+          
+          if (!userId) {
+            console.warn('Usuário não autenticado');
+            showToast('Sessão expirada. Faça login novamente.', 'warning');
+          }
+        }
+      } catch (err) {
+        console.error('Erro inesperado ao inicializar sessão:', err);
+        if (!cancelled) {
+          showToast('Erro ao verificar autenticação.', 'error');
+        }
+      }
     };
     init();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Mudança de autenticação:', { event, userId: session?.user?.id });
       setUserId(session?.user?.id ?? null);
+      
+      if (event === 'SIGNED_OUT') {
+        showToast('Sessão encerrada.', 'info');
+      } else if (event === 'SIGNED_IN') {
+        showToast('Login realizado com sucesso!', 'success');
+      }
     });
 
     return () => {
@@ -696,6 +725,12 @@ export default function Dashboard({ setUser }) {
   const handleUpdatePrices = async () => {
     if (!selectedProduct) return;
     
+    // Verificar se o usuário está autenticado
+    if (!userId) {
+      showToast('Usuário não autenticado. Faça login novamente.', 'error');
+      return;
+    }
+    
     // Preparar objeto de atualização apenas com campos preenchidos
     const updateData = {};
     
@@ -713,16 +748,60 @@ export default function Dashboard({ setUser }) {
       return;
     }
     
-    const { error } = await supabase
-      .from('products')
-      .update(updateData)
-      .eq('id', selectedProduct.id)
-      .eq('user_id', userId);
+    console.log('Tentando atualizar produto:', {
+      productId: selectedProduct.id,
+      userId: userId,
+      updateData: updateData
+    });
+    
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .update(updateData)
+        .eq('id', selectedProduct.id)
+        .eq('user_id', userId)
+        .select();
+        
+      if (error) {
+        console.error('Erro detalhado ao atualizar preços:', {
+          error: error,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        
+        // Tentar com fallback para last_purchase_value se cost_price falhar
+        if (error.message && error.message.includes('cost_price')) {
+          console.log('Tentando fallback com last_purchase_value...');
+          const fallbackData = { ...updateData };
+          if (fallbackData.cost_price) {
+            fallbackData.last_purchase_value = fallbackData.cost_price;
+            delete fallbackData.cost_price;
+          }
+          
+          const { data: fallbackResult, error: fallbackError } = await supabase
+            .from('products')
+            .update(fallbackData)
+            .eq('id', selectedProduct.id)
+            .eq('user_id', userId)
+            .select();
+            
+          if (fallbackError) {
+            console.error('Erro no fallback:', fallbackError);
+            showToast(`Erro ao atualizar preços: ${fallbackError.message}`, 'error');
+            return;
+          } else {
+            console.log('Fallback bem-sucedido:', fallbackResult);
+          }
+        } else {
+          showToast(`Erro ao atualizar preços: ${error.message}`, 'error');
+          return;
+        }
+      } else {
+        console.log('Atualização bem-sucedida:', data);
+      }
       
-    if (error) {
-      console.error('Erro ao atualizar preços:', error);
-      showToast('Erro ao atualizar preços do produto.', 'error');
-    } else {
       // Atualizar a lista de produtos
       fetchProducts();
       setShowPriceModal(false);
@@ -730,6 +809,10 @@ export default function Dashboard({ setUser }) {
       setEditSalePrice('');
       setSelectedProduct(null);
       showToast('Preços atualizados com sucesso!', 'success');
+      
+    } catch (err) {
+      console.error('Erro inesperado ao atualizar preços:', err);
+      showToast(`Erro inesperado: ${err.message}`, 'error');
     }
   };
 
