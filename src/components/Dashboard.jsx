@@ -60,7 +60,10 @@ export default function Dashboard({ setUser }) {
   
   // Estados da interface
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    // Recupera a aba ativa do localStorage ou usa 'dashboard' como padrão
+    return localStorage.getItem('activeTab') || 'dashboard';
+  });
   const [userId, setUserId] = useState(null);
   
   // Estado do tema
@@ -458,6 +461,12 @@ export default function Dashboard({ setUser }) {
     }
   }, [userId]);
 
+  // Função helper para mudança de aba com persistência
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    localStorage.setItem('activeTab', tab);
+  };
+
   // Atalhos de teclado para navegação rápida
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -492,15 +501,15 @@ export default function Dashboard({ setUser }) {
             break;
           case 'h': // Ctrl+H - Histórico de vendas
             e.preventDefault();
-            setActiveTab('history');
+            handleTabChange('history');
             break;
           case 'd': // Ctrl+D - Dashboard
             e.preventDefault();
-            setActiveTab('dashboard');
+            handleTabChange('dashboard');
             break;
           case 'c': // Ctrl+C - Calculadora
             e.preventDefault();
-            setActiveTab('calculator');
+            handleTabChange('calculator');
             break;
           case 't': // Ctrl+T - Alternar tema
             e.preventDefault();
@@ -1397,12 +1406,20 @@ export default function Dashboard({ setUser }) {
   // Adicionar item do topo (Quick Add) à lista em lote
   const handleQuickAddToBatch = () => {
     const q = parseFloat(quickEntry.quantity);
-    const c = parseFloat(String(quickEntry.cost_price).replace(',', '.'));
-    const s = parseFloat(String(quickEntry.sale_price).replace(',', '.'));
-    if (!quickEntry.barcode || !quickEntry.name || isNaN(q) || q <= 0 || isNaN(c) || c < 0 || isNaN(s) || s <= 0 || s < c) {
-      showToast('error', 'Preencha código, nome, quantidade, custo e venda (≥ custo).');
+    let c = parseFloat(String(quickEntry.cost_price || '0.01').replace(',', '.'));
+    let s = parseFloat(String(quickEntry.sale_price || '1.00').replace(',', '.'));
+    
+    // Validação básica obrigatória
+    if (!quickEntry.barcode || !quickEntry.name || isNaN(q) || q <= 0) {
+      showToast('error', 'Preencha código, nome e quantidade válida.');
       return;
     }
+    
+    // Aplicar valores padrão se não informados ou inválidos
+    if (isNaN(c) || c < 0) c = 0.01;
+    if (isNaN(s) || s <= 0) s = 1.00;
+    if (s < c) s = c + 0.01; // Garantir margem mínima
+    
     const next = [...batchProducts, {
       barcode: quickEntry.barcode,
       name: quickEntry.name,
@@ -1441,7 +1458,7 @@ export default function Dashboard({ setUser }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [showEntryModal, quickEntry, batchProducts, simpleMode]);
 
-  // Entrada simplificada: acumula linhas para processar depois
+  // Entrada simplificada: permite adicionar novos produtos ou atualizar existentes
   const handleSimpleAdd = async () => {
     const q = parseFloat(quickEntry.quantity);
     if (!quickEntry.barcode || isNaN(q) || q <= 0) {
@@ -1449,7 +1466,7 @@ export default function Dashboard({ setUser }) {
       return;
     }
 
-    // Busca produto existente e atualiza estoque imediatamente
+    // Busca produto existente
     const { data: existing, error: findErr } = await supabase
       .from('products')
       .select('*')
@@ -1462,29 +1479,76 @@ export default function Dashboard({ setUser }) {
       return;
     }
 
-    if (!existing || existing.length === 0) {
-      showToast('error', 'Produto não cadastrado. Use Modo Avançado ou cadastre em Produtos.');
-      return;
+    if (existing && existing.length > 0) {
+      // Produto existe: atualiza estoque
+      const current = existing[0];
+      const newQty = Number(current.quantity || 0) + q;
+      const { error: upErr } = await supabase
+        .from('products')
+        .update({ quantity: newQty })
+        .eq('id', current.id)
+        .eq('user_id', userId);
+
+      if (upErr) {
+        showToast('error', `Erro ao atualizar estoque: ${upErr.message}`);
+        return;
+      }
+
+      fetchProducts();
+      setQuickEntry({ barcode: '', name: '', quantity: '', cost_price: '', markup: '', sale_price: '' });
+      setSuggestions([]);
+      setShowSuggestions(false);
+      showToast('success', 'Estoque atualizado com sucesso!');
+    } else {
+      // Produto não existe: precisa de mais informações para criar
+      if (!quickEntry.name) {
+        showToast('error', 'Para novos produtos, informe também o nome.');
+        return;
+      }
+
+      // Valores padrão para novos produtos
+      const defaultCost = 0.01; // Custo mínimo
+      const defaultSale = 1.00; // Preço de venda padrão
+      
+      // Cria novo produto
+      const payload = {
+        barcode: quickEntry.barcode,
+        name: quickEntry.name,
+        quantity: q,
+        cost_price: defaultCost,
+        sale_price: defaultSale,
+        user_id: userId,
+      };
+
+      const { error } = await supabase.from('products').insert([payload]);
+      if (error) {
+        // Fallback para schema antigo
+        if (/cost_price/i.test(error.message)) {
+          const legacyPayload = {
+            barcode: quickEntry.barcode,
+            name: quickEntry.name,
+            quantity: q,
+            last_purchase_value: defaultCost,
+            sale_price: defaultSale,
+            user_id: userId,
+          };
+          const { error: legacyError } = await supabase.from('products').insert([legacyPayload]);
+          if (legacyError) {
+            showToast('error', `Erro ao criar produto: ${legacyError.message}`);
+            return;
+          }
+        } else {
+          showToast('error', `Erro ao criar produto: ${error.message}`);
+          return;
+        }
+      }
+
+      fetchProducts();
+      setQuickEntry({ barcode: '', name: '', quantity: '', cost_price: '', markup: '', sale_price: '' });
+      setSuggestions([]);
+      setShowSuggestions(false);
+      showToast('success', 'Novo produto criado com sucesso! Lembre-se de definir os preços corretos.');
     }
-
-    const current = existing[0];
-    const newQty = Number(current.quantity || 0) + q;
-    const { error: upErr } = await supabase
-      .from('products')
-      .update({ quantity: newQty })
-      .eq('id', current.id)
-      .eq('user_id', userId);
-
-    if (upErr) {
-      showToast('error', `Erro ao atualizar estoque: ${upErr.message}`);
-      return;
-    }
-
-    fetchProducts();
-    setQuickEntry({ barcode: '', name: '', quantity: '', cost_price: '', markup: '', sale_price: '' });
-    setSuggestions([]);
-    setShowSuggestions(false);
-    showToast('success', 'Estoque atualizado com sucesso!');
   };
 
   const handleRemoveSimpleItem = (index) => {
@@ -1540,12 +1604,19 @@ export default function Dashboard({ setUser }) {
 
   const handleQuickEntrySubmit = async () => {
     const q = parseFloat(quickEntry.quantity);
-    const c = parseFloat(String(quickEntry.cost_price).replace(',', '.'));
-    const s = parseFloat(String(quickEntry.sale_price).replace(',', '.'));
-    if (!quickEntry.barcode || !quickEntry.name || isNaN(q) || q <= 0 || isNaN(c) || c < 0 || isNaN(s) || s <= 0 || s < c) {
-      showToast('error', 'Preencha código, nome, quantidade, custo e venda (≥ custo).');
+    let c = parseFloat(String(quickEntry.cost_price || '0.01').replace(',', '.'));
+    let s = parseFloat(String(quickEntry.sale_price || '1.00').replace(',', '.'));
+    
+    // Validação básica obrigatória
+    if (!quickEntry.barcode || !quickEntry.name || isNaN(q) || q <= 0) {
+      showToast('error', 'Preencha código, nome e quantidade válida.');
       return;
     }
+    
+    // Aplicar valores padrão se não informados ou inválidos
+    if (isNaN(c) || c < 0) c = 0.01;
+    if (isNaN(s) || s <= 0) s = 1.00;
+    if (s < c) s = c + 0.01; // Garantir margem mínima
 
     // Verifica se já existe produto com o mesmo código
     const { data: existing, error: findErr } = await supabase
@@ -1965,37 +2036,37 @@ export default function Dashboard({ setUser }) {
         <div className="sidebar-content">
           <ul className="nav-menu">
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('dashboard'); handleMobileNavClick(); }}>
+              <a href="#" className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleTabChange('dashboard'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-chart-bar"></i></span>
                 <span>Dashboard</span>
               </a>
             </li>
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'produtos' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('produtos'); handleMobileNavClick(); }}>
+              <a href="#" className={`nav-link ${activeTab === 'produtos' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleTabChange('produtos'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-boxes"></i></span>
                 <span>Produtos</span>
               </a>
             </li>
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'vendas' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('vendas'); handleMobileNavClick(); }}>
+              <a href="#" className={`nav-link ${activeTab === 'vendas' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleTabChange('vendas'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-cash-register"></i></span>
                 <span>Vendas</span>
               </a>
             </li>
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'historico' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('historico'); handleMobileNavClick(); }}>
+              <a href="#" className={`nav-link ${activeTab === 'historico' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleTabChange('historico'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-chart-line"></i></span>
                 <span>Histórico</span>
               </a>
             </li>
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'custos' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('custos'); handleMobileNavClick(); }}>
+              <a href="#" className={`nav-link ${activeTab === 'custos' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleTabChange('custos'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-calculator"></i></span>
                 <span>Cálculo de Custos</span>
               </a>
             </li>
             <li className="nav-item">
-              <a href="#" className={`nav-link ${activeTab === 'configuracoes' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); setActiveTab('configuracoes'); handleMobileNavClick(); }}>
+              <a href="#" className={`nav-link ${activeTab === 'configuracoes' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleTabChange('configuracoes'); handleMobileNavClick(); }}>
                 <span className="nav-icon"><i className="fas fa-cog"></i></span>
                 <span>Configurações</span>
               </a>
@@ -2030,7 +2101,7 @@ export default function Dashboard({ setUser }) {
               <div className="sales-summary">
                 <h2>Resumo de Vendas</h2>
                 <div className="sales-stats">
-                  <div className="stat-card" onClick={() => setActiveTab('historico')} style={{ cursor: 'pointer' }}>
+                  <div className="stat-card" onClick={() => handleTabChange('historico')} style={{ cursor: 'pointer' }}>
                     <div className="stat-icon">
                       <i className="fas fa-money-bill-wave"></i>
                     </div>
@@ -2039,7 +2110,7 @@ export default function Dashboard({ setUser }) {
                       <div className="stat-value">{formatCurrency(totalSales)}</div>
                     </div>
                   </div>
-                  <div className="stat-card" onClick={() => setActiveTab('produtos')} style={{ cursor: 'pointer' }}>
+                  <div className="stat-card" onClick={() => handleTabChange('produtos')} style={{ cursor: 'pointer' }}>
                     <div className="stat-icon">
                       <i className="fas fa-boxes"></i>
                     </div>
@@ -2048,7 +2119,7 @@ export default function Dashboard({ setUser }) {
                       <div className="stat-value">{totalProducts}</div>
                     </div>
                   </div>
-                  <div className="stat-card" onClick={() => setActiveTab('produtos')} style={{ cursor: 'pointer' }}>
+                  <div className="stat-card" onClick={() => handleTabChange('produtos')} style={{ cursor: 'pointer' }}>
                     <div className="stat-icon">
                       <i className="fas fa-exclamation-triangle"></i>
                     </div>
@@ -2906,9 +2977,9 @@ export default function Dashboard({ setUser }) {
                 </button>
               </div>
 
-              {/* Formulário super simples: Código + Quantidade + Adicionar */}
+              {/* Formulário super simples: Código + Nome + Quantidade + Adicionar */}
               <div className="simple-form card simple-only" style={{ marginBottom: '1rem', padding: '1rem' }}>
-                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
+                <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
                   <div className="form-group barcode-group">
                     <label>Código</label>
                     <input
@@ -2948,6 +3019,16 @@ export default function Dashboard({ setUser }) {
                     )}
                   </div>
                   <div className="form-group">
+                    <label>Nome do Produto</label>
+                    <input 
+                      className="big-input" 
+                      type="text" 
+                      value={quickEntry.name} 
+                      onChange={(e) => handleQuickEntryChange('name', e.target.value)} 
+                      placeholder="Nome (obrigatório para novos produtos)"
+                    />
+                  </div>
+                  <div className="form-group">
                     <label>Quantidade</label>
                     <input className="big-input" type="number" min="1" value={quickEntry.quantity} onChange={(e) => handleQuickEntryChange('quantity', e.target.value)} />
                   </div>
@@ -2963,7 +3044,7 @@ export default function Dashboard({ setUser }) {
                   <p className="helper-text">Produto: {quickEntry.name} • Estoque atual: {products.find(p => String(p.barcode) === String(quickEntry.barcode))?.quantity ?? '-'}
                   </p>
                 )}
-                <p className="helper-text">Dica: escaneie o código e informe a quantidade. Para cadastrar novos produtos, use Modo Avançado.</p>
+                <p className="helper-text">Dica: Para produtos existentes, basta código e quantidade. Para novos produtos, informe também o nome.</p>
                 {/* Lista do Modo Simples removida; todos os itens aparecem abaixo na lista principal */}
               </div>
               {/* Formulário superior para adicionar item à lista (Modo Avançado) */}
@@ -3016,16 +3097,16 @@ export default function Dashboard({ setUser }) {
                     <input type="number" min="1" value={quickEntry.quantity} onChange={(e) => handleQuickEntryChange('quantity', e.target.value)} />
                   </div>
                   <div className="form-group">
-                    <label>Custo</label>
-                    <input type="number" min="0" step="0.01" value={quickEntry.cost_price} onChange={(e) => handleQuickEntryChange('cost_price', e.target.value)} />
+                    <label>Custo (opcional)</label>
+                    <input type="number" min="0" step="0.01" value={quickEntry.cost_price} onChange={(e) => handleQuickEntryChange('cost_price', e.target.value)} placeholder="0,01" />
                   </div>
                   <div className="form-group">
                     <label>Percentual acima do custo (%)</label>
                     <input type="number" min="0" step="0.01" value={quickEntry.markup} onChange={(e) => handleQuickEntryChange('markup', e.target.value)} />
                   </div>
                   <div className="form-group">
-                    <label>Venda</label>
-                    <input type="number" min="0.01" step="0.01" value={quickEntry.sale_price} onChange={(e) => handleQuickEntryChange('sale_price', e.target.value)} />
+                    <label>Venda (opcional)</label>
+                    <input type="number" min="0.01" step="0.01" value={quickEntry.sale_price} onChange={(e) => handleQuickEntryChange('sale_price', e.target.value)} placeholder="1,00" />
                   </div>
                   <button
                     className="btn-primary"
@@ -3036,6 +3117,7 @@ export default function Dashboard({ setUser }) {
                     Adicionar
                   </button>
                 </div>
+                <p className="helper-text">Dica: Campos obrigatórios: código, nome e quantidade. Custo e venda são opcionais (padrão: R$ 0,01 e R$ 1,00).</p>
               </div>
               <div className="batch-form advanced-only">
                 <div className="batch-tools">
