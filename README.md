@@ -87,13 +87,14 @@ npm run dev
 src/
 ├── components/
 │   ├── Dashboard.jsx          # Componente principal
-│   ├── Dashboard.css          # Estilos do dashboard
 │   ├── Login.jsx              # Tela de login
-│   ├── Login.css              # Estilos do login
 │   ├── Signup.jsx             # Tela de cadastro
 │   ├── ForgotPassword.jsx     # Recuperação de senha
 │   ├── ResetPassword.jsx      # Redefinição de senha
-│   ├── SalesHistory.jsx       # Histórico de vendas
+│   └── SalesHistory.jsx       # Histórico de vendas
+├── styles/
+│   ├── Dashboard.css          # Estilos do dashboard
+│   ├── Login.css              # Estilos do login/auth
 │   └── SalesHistory.css       # Estilos do histórico
 ├── App.jsx                    # Componente raiz
 ├── App.css                    # Estilos globais
@@ -107,11 +108,19 @@ src/
 - `npm run dev` - Inicia o servidor de desenvolvimento
 - `npm run build` - Gera a build de produção
 - `npm run preview` - Visualiza a build de produção
-- `npm run lint` - Executa o linter ESLint
 
 ## Configuração do Supabase
 
+### Variáveis de Ambiente
+
+1. Copie o arquivo `.env.example` para `.env`
+2. Preencha as variáveis com os dados do seu projeto Supabase:
+   - `VITE_SUPABASE_URL`: URL do seu projeto
+   - `VITE_SUPABASE_ANON_KEY`: Chave pública do projeto
+
 ### Tabelas Necessárias
+
+Execute o script SQL em `supabase/create_tables.sql` no seu projeto Supabase para criar:
 
 1. **products**: Armazena informações dos produtos
 2. **sales**: Registra as vendas realizadas

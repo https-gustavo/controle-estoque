@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import './SalesHistory.css';
+import '../styles/SalesHistory.css';
 
 /**
  * Componente para visualizar e gerenciar o histórico de vendas
@@ -55,11 +55,9 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
         products: productsData.find(p => p.id === sale.product_id)
       }));
 
-      // Agrupa vendas por data para melhor organização
       const grouped = salesWithProducts.reduce((acc, sale) => {
         const saleDate = new Date(sale.date);
         if (isNaN(saleDate.getTime())) {
-          console.warn('Data inválida encontrada:', sale.date);
           return acc;
         }
         
@@ -83,7 +81,6 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
         return acc;
       }, {});
 
-      // Ordena grupos por data (mais recente primeiro)
       const groupedArray = Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
       setSalesHistoryGroups(groupedArray);
     } catch (error) {

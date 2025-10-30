@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../supabaseClient';
-import './Login.css';
+import '../styles/Login.css';
 
 /**
  * Componente para recuperação de senha
@@ -32,22 +32,15 @@ export default function ForgotPassword({ switchToLogin }) {
       
       let resetUrl;
       if (isLocalhost) {
-        // Em desenvolvimento local
         resetUrl = `${origin}/reset-password`;
       } else {
-        // Em produção (GitHub Pages) - força a URL correta
         resetUrl = `https://https-gustavo.github.io/controle-estoque/reset-password`;
       }
-      
-      console.log('🔗 URL de reset configurada:', resetUrl);
-      console.log('🌍 Origin atual:', origin);
-      console.log('🏠 É localhost?', isLocalhost);
       
       return resetUrl;
     };
 
     const resetUrl = getResetUrl();
-    console.log('📧 Enviando email com redirectTo:', resetUrl);
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: resetUrl,

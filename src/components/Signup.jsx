@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
-import './Dashboard.css';
+import '../styles/Dashboard.css';
 
 /**
  * Componente de cadastro de novos usuários

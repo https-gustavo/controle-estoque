@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import SalesHistory from './SalesHistory';
-import './Dashboard.css';
+import '../styles/Dashboard.css';
 import { useNavigate } from 'react-router-dom';
 
 /**
@@ -411,12 +411,9 @@ export default function Dashboard({ setUser }) {
   }, [darkMode]);
 
   const toggleDarkMode = () => {
-    console.log('Toggle dark mode clicked');
     setDarkMode(prev => {
       const newMode = !prev;
-      console.log('New mode:', newMode);
       document.documentElement.setAttribute('data-theme', newMode ? 'dark' : 'light');
-      console.log('Theme applied:', document.documentElement.getAttribute('data-theme'));
       localStorage.setItem('darkMode', JSON.stringify(newMode));
       return newMode;
     });
@@ -1120,7 +1117,6 @@ export default function Dashboard({ setUser }) {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
-        // Só tenta fazer logout se houver sessão ativa
         const { error } = await supabase.auth.signOut();
         
         if (error && !error.message.includes('Auth session missing')) {
@@ -1128,20 +1124,13 @@ export default function Dashboard({ setUser }) {
           showToast('error', 'Erro ao sair: ' + error.message);
           return;
         }
-      } else {
-        console.log('Nenhuma sessão ativa encontrada, prosseguindo com limpeza local');
       }
       
-      // Limpa o estado do usuário
       setUser(null);
       
-      // Limpa dados locais
       localStorage.removeItem('supabase.auth.token');
       localStorage.removeItem('sb-' + supabase.supabaseUrl.split('//')[1] + '-auth-token');
       
-      console.log('Logout realizado com sucesso');
-      
-      // Redireciona para a tela de login
       navigate('/', { replace: true });
       
     } catch (err) {
@@ -3126,13 +3115,12 @@ export default function Dashboard({ setUser }) {
                       <i className="fas fa-calculator"></i>
                       <span>Resumo da Entrada</span>
                     </div>
-                    <div className="totals-grid" style={{
+                    <div className={`totals-grid four-items`} style={{
                       display: 'flex',
                       flexDirection: 'row',
                       gap: '1rem',
-                      flexWrap: 'nowrap',
-                      overflowX: 'auto',
-                      justifyContent: 'flex-start',
+                      flexWrap: 'wrap',
+                      justifyContent: 'center',
                       alignItems: 'stretch'
                     }}>
                       <div className="total-item" style={{
@@ -3145,10 +3133,8 @@ export default function Dashboard({ setUser }) {
                         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
                         position: 'relative',
                         overflow: 'hidden',
-                        flex: '0 0 auto',
-                        width: '160px',
-                        minWidth: '160px',
-                        maxWidth: '160px',
+                        flex: '1 1 calc(50% - 0.5rem)',
+                        minWidth: '140px',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'center'
@@ -3180,10 +3166,8 @@ export default function Dashboard({ setUser }) {
                         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
                         position: 'relative',
                         overflow: 'hidden',
-                        flex: '0 0 auto',
-                        width: '160px',
-                        minWidth: '160px',
-                        maxWidth: '160px',
+                        flex: '1 1 calc(50% - 0.5rem)',
+                        minWidth: '140px',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'center'
@@ -3215,10 +3199,8 @@ export default function Dashboard({ setUser }) {
                         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
                         position: 'relative',
                         overflow: 'hidden',
-                        flex: '0 0 auto',
-                        width: '160px',
-                        minWidth: '160px',
-                        maxWidth: '160px',
+                        flex: '1 1 calc(50% - 0.5rem)',
+                        minWidth: '140px',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'center'
@@ -3250,10 +3232,8 @@ export default function Dashboard({ setUser }) {
                         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
                         position: 'relative',
                         overflow: 'hidden',
-                        flex: '0 0 auto',
-                        width: '160px',
-                        minWidth: '160px',
-                        maxWidth: '160px',
+                        flex: '1 1 calc(50% - 0.5rem)',
+                        minWidth: '140px',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'center'
@@ -3278,6 +3258,55 @@ export default function Dashboard({ setUser }) {
                     </div>
                   </div>
                 </div>
+                
+                {/* Layout de cards para mobile */}
+                <div className="batch-products-mobile">
+                  {batchProducts.filter(p => p.barcode).map((product, index) => (
+                    <div key={index} className="batch-product-card">
+                      <div className="product-header">
+                        <div className="product-name">{product.name}</div>
+                        <button 
+                          className="remove-btn"
+                          onClick={() => handleRemoveBatchRow(index)}
+                        >
+                          Remover
+                        </button>
+                      </div>
+                      <div className="product-details">
+                        <div className="detail-item">
+                          <div className="detail-label">Código</div>
+                          <div className="detail-value">{product.barcode}</div>
+                        </div>
+                        <div className="detail-item">
+                          <div className="detail-label">Quantidade</div>
+                          <div className="detail-value">{product.quantity}</div>
+                        </div>
+                        <div className="detail-item">
+                          <div className="detail-label">Custo</div>
+                          <div className="detail-value">{product.cost_price}</div>
+                        </div>
+                        <div className="detail-item">
+                          <div className="detail-label">Venda</div>
+                          <div className="detail-value">{product.sale_price}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {batchProducts.filter(p => p.barcode).length === 0 && (
+                    <div className="mobile-empty-message" style={{ 
+                      textAlign: 'center', 
+                      color: 'var(--text-secondary)', 
+                      padding: '2rem',
+                      background: '#f9fafb',
+                      borderRadius: '8px',
+                      border: '2px dashed #d1d5db'
+                    }}>
+                      Nenhum item adicionado. Use o formulário acima.
+                    </div>
+                  )}
+                </div>
+                
+                {/* Tabela para desktop */}
                 <div className="batch-table-container">
                   <table className="batch-table">
                     <thead>
@@ -3309,7 +3338,7 @@ export default function Dashboard({ setUser }) {
                         </tr>
                       ))}
                       {batchProducts.filter(p => p.barcode).length === 0 && (
-                        <tr>
+                        <tr className="desktop-empty-message">
                           <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
                             Nenhum item adicionado. Use o formulário acima.
                           </td>

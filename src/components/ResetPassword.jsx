@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import './Login.css';
+import '../styles/Login.css';
 
 /**
  * Componente para redefinição de senha
@@ -22,55 +22,33 @@ export default function ResetPassword({ onPasswordReset }) {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        console.log('=== DEBUG RESET PASSWORD ===');
-        console.log('URL completa:', window.location.href);
-        console.log('Search params:', window.location.search);
-        console.log('Hash:', window.location.hash);
-        
-        // Verifica parâmetros da URL (tanto search quanto hash)
         const urlParams = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         
-        // Tenta pegar tokens do search params primeiro
         let accessToken = urlParams.get('access_token');
         let refreshToken = urlParams.get('refresh_token');
         let type = urlParams.get('type');
         
-        // Se não encontrou no search, tenta no hash
         if (!accessToken) {
           accessToken = hashParams.get('access_token');
           refreshToken = hashParams.get('refresh_token');
           type = hashParams.get('type');
         }
-        
-        console.log('Tokens encontrados:', { 
-          accessToken: accessToken ? 'SIM' : 'NÃO', 
-          refreshToken: refreshToken ? 'SIM' : 'NÃO', 
-          type 
-        });
 
         if (type === 'recovery' && accessToken && refreshToken) {
-          console.log('Tentando definir sessão com tokens...');
-          // Define a sessão com os tokens da URL
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken
           });
 
           if (error) {
-            console.error('Erro ao definir sessão:', error);
             setIsValidSession(false);
             setMessage('Link de recuperação inválido ou expirado');
           } else {
-            console.log('Sessão definida com sucesso:', data);
             setIsValidSession(true);
           }
         } else {
-          console.log('Verificando sessão existente...');
-          // Verifica se já existe uma sessão ativa
           const { data: { session } } = await supabase.auth.getSession();
-          console.log('Sessão existente:', !!session);
-          console.log('Detalhes da sessão:', session);
           
           if (session) {
             setIsValidSession(true);
@@ -80,7 +58,6 @@ export default function ResetPassword({ onPasswordReset }) {
           }
         }
       } catch (error) {
-        console.error('Erro ao verificar sessão:', error);
         setIsValidSession(false);
         setMessage('Erro ao verificar link de recuperação');
       }
@@ -149,7 +126,6 @@ export default function ResetPassword({ onPasswordReset }) {
         }, 2000);
       }
     } catch (error) {
-      console.error('Erro ao redefinir senha:', error);
       setMessage('Erro ao redefinir senha. Tente novamente.');
     }
 
