@@ -43,6 +43,22 @@ ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE store_settings ENABLE ROW LEVEL SECURITY;
 
+-- Remover políticas existentes se houver
+DROP POLICY IF EXISTS "Users can view own products" ON products;
+DROP POLICY IF EXISTS "Users can insert own products" ON products;
+DROP POLICY IF EXISTS "Users can update own products" ON products;
+DROP POLICY IF EXISTS "Users can delete own products" ON products;
+
+DROP POLICY IF EXISTS "Users can view own sales" ON sales;
+DROP POLICY IF EXISTS "Users can insert own sales" ON sales;
+DROP POLICY IF EXISTS "Users can update own sales" ON sales;
+DROP POLICY IF EXISTS "Users can delete own sales" ON sales;
+
+DROP POLICY IF EXISTS "Users can view own store_settings" ON store_settings;
+DROP POLICY IF EXISTS "Users can insert own store_settings" ON store_settings;
+DROP POLICY IF EXISTS "Users can update own store_settings" ON store_settings;
+DROP POLICY IF EXISTS "Users can delete own store_settings" ON store_settings;
+
 -- Políticas para products - usuários só podem ver/editar seus próprios dados
 CREATE POLICY "Users can view own products" ON products
   FOR SELECT USING (auth.uid() = user_id);
@@ -69,7 +85,7 @@ CREATE POLICY "Users can update own sales" ON sales
 CREATE POLICY "Users can delete own sales" ON sales
   FOR DELETE USING (auth.uid() = user_id);
 
--- Criar política para store_settings - usuários só podem ver/editar seus próprios dados
+-- Políticas para store_settings - usuários só podem ver/editar seus próprios dados
 CREATE POLICY "Users can view own store_settings" ON store_settings
   FOR SELECT USING (auth.uid() = user_id);
 
@@ -81,6 +97,11 @@ CREATE POLICY "Users can update own store_settings" ON store_settings
 
 CREATE POLICY "Users can delete own store_settings" ON store_settings
   FOR DELETE USING (auth.uid() = user_id);
+
+-- Remover triggers e função existentes se houver
+DROP TRIGGER IF EXISTS update_products_updated_at ON products;
+DROP TRIGGER IF EXISTS update_store_settings_updated_at ON store_settings;
+DROP FUNCTION IF EXISTS update_updated_at_column();
 
 -- Função para atualizar updated_at automaticamente
 CREATE OR REPLACE FUNCTION update_updated_at_column()
