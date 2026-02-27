@@ -1,0 +1,44 @@
+/* ========================================
+   APP - Estilos globais e reset
+   Base para toda a aplicação
+======================================== */
+
+/* Reset global e configurações base */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  background-color: var(--background-color);
+  color: var(--text-primary);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Container principal da aplicação */
+.App {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.02) 100%);
+}
+
+/* Wrapper para componentes de autenticação */
+.auth-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  text-align: initial;
+}
+
+/* Oculta título redundante */
+.auth-wrapper h1 { 
+  display: none; 
+}
