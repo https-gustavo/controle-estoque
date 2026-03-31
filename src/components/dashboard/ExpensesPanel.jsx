@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../supabaseClient';
+import { demoApi } from '../../demo/demoApi';
 
 function toNum(v) {
   const n = parseFloat(String(v ?? '').replace(',', '.'));
   return Number.isNaN(n) ? 0 : n;
 }
 
-export default function ExpensesPanel({ userId, formatCurrency, showToast }) {
+export default function ExpensesPanel({ userId, demo, formatCurrency, showToast }) {
   const [from, setFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10);
   });
@@ -34,6 +35,10 @@ export default function ExpensesPanel({ userId, formatCurrency, showToast }) {
   const fetchRows = async () => {
     if (!userId) return;
     if (!available) return;
+    if (demo || userId === 'demo') {
+      setRows(demoApi.listExpenses({ from, to }));
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -64,6 +69,20 @@ export default function ExpensesPanel({ userId, formatCurrency, showToast }) {
   const submit = async (e) => {
     e?.preventDefault?.();
     if (!userId) return;
+    if (demo || userId === 'demo') {
+      const description = String(form.description || '').trim();
+      const amount = toNum(form.amount);
+      const category = String(form.category || 'Geral').trim() || 'Geral';
+      const date = String(form.date || '').slice(0, 10);
+      if (!description) { showToast?.('Informe a descrição', 'danger'); return; }
+      if (!(amount > 0)) { showToast?.('Informe um valor válido', 'danger'); return; }
+      demoApi.createExpense({ description, amount, category, date, recurring: Boolean(form.recurring) });
+      setForm({ description: '', amount: '', category, date, recurring: false });
+      setRows(demoApi.listExpenses({ from, to }));
+      showToast?.('Despesa cadastrada (demo)', 'success');
+      try { window.dispatchEvent(new Event('dashboard:refresh')); } catch {}
+      return;
+    }
     if (!available) { showToast?.('Tabela de despesas não configurada no Supabase', 'danger'); return; }
     const description = String(form.description || '').trim();
     const amount = toNum(form.amount);
@@ -89,6 +108,14 @@ export default function ExpensesPanel({ userId, formatCurrency, showToast }) {
 
   const remove = async (id) => {
     if (!userId || !id) return;
+    if (demo || userId === 'demo') {
+      if (!window.confirm('Excluir despesa?')) return;
+      demoApi.deleteExpense(id);
+      setRows(demoApi.listExpenses({ from, to }));
+      showToast?.('Despesa excluída (demo)', 'success');
+      try { window.dispatchEvent(new Event('dashboard:refresh')); } catch {}
+      return;
+    }
     if (!available) { showToast?.('Tabela de despesas não configurada no Supabase', 'danger'); return; }
     if (!window.confirm('Excluir despesa?')) return;
     setLoading(true);

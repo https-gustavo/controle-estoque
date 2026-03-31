@@ -23,19 +23,29 @@ export default function FinanceChart({ rows, formatCurrency, onEmptyCta }) {
     });
     const minV = ysAll.length ? Math.min(...ysAll, 0) : 0;
     const maxV = ysAll.length ? Math.max(...ysAll, 0) : 0;
+    const niceStep = (raw) => {
+      const r = Math.max(1e-9, Number(raw || 0));
+      const exp = Math.floor(Math.log10(r));
+      const f = r / Math.pow(10, exp);
+      const n = f <= 1 ? 1 : (f <= 2 ? 2 : (f <= 5 ? 5 : 10));
+      return n * Math.pow(10, exp);
+    };
+
+    const yTicks = 4;
     const range = Math.max(1, maxV - minV);
-    const minY = minV - range * 0.08;
-    const maxY = maxV + range * 0.08;
+    const step = niceStep(range / yTicks);
+    const minY = Math.floor(minV / step) * step;
+    const maxY = Math.ceil(maxV / step) * step;
+
     const y = (v) => {
-      const t = (Number(v || 0) - minY) / (maxY - minY);
+      const denom = (maxY - minY) || 1;
+      const t = (Number(v || 0) - minY) / denom;
       return pad.t + (1 - t) * innerH;
     };
     const points = (key) => data.map((r, i) => `${xs[i]},${y(r[key])}`).join(' ');
-    const yTicks = 4;
     const ticks = Array.from({ length: yTicks + 1 }).map((_, i) => {
-      const t = i / yTicks;
-      const v = maxY - t * (maxY - minY);
-      return { y: pad.t + t * innerH, v };
+      const v = maxY - i * step;
+      return { y: y(v), v };
     });
     const zeroY = y(0);
     return { w, h, pad, xs, y, points, ticks, zeroY };

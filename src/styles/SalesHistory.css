@@ -254,6 +254,40 @@
   border-bottom: 1px solid var(--border-color);
 }
 
+.history-meta-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -8px;
+  margin-bottom: 10px;
+}
+.history-sale-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 900;
+  color: #0f172a;
+  background: linear-gradient(135deg, rgba(59,130,246,0.14), rgba(139,92,246,0.12));
+  border: 1px solid rgba(59,130,246,0.28);
+  padding: 8px 12px;
+  border-radius: 999px;
+  box-shadow: 0 10px 22px rgba(2, 6, 23, 0.08);
+}
+.history-sale-id-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(59,130,246,0.20);
+  border: 1px solid rgba(59,130,246,0.30);
+  color: #1d4ed8;
+  font-weight: 950;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
 .history-date {
   display: flex;
   align-items: center;

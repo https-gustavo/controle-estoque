@@ -33,8 +33,7 @@ export default function Signup({ switchToLogin, setUser }) {
     
     setLoading(true);
     setMessage('');
-    
-<<<<<<< HEAD
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -42,14 +41,10 @@ export default function Signup({ switchToLogin, setUser }) {
         emailRedirectTo: `${window.location.origin}/reset-password`
       }
     });
-=======
-    const { data, error } = await supabase.auth.signUp({ email, password });
->>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
     
     if (error) {
       setMessage(error.message);
     } else {
-<<<<<<< HEAD
       if (data.session) {
         setUser(data.user);
         setMessage('Conta criada com sucesso!');
@@ -67,20 +62,11 @@ export default function Signup({ switchToLogin, setUser }) {
           setMessage('Cadastro criado! Confirme seu e-mail para ativar a conta.');
         }
       }
-=======
-      setUser(data.user);
-      setMessage('Conta criada com sucesso!');
-      navigate('/dashboard');
->>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
     }
     
     setLoading(false);
   };
 
-<<<<<<< HEAD
-=======
-  // Permite cadastro com Enter
->>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       handleSignup();
@@ -94,7 +80,7 @@ export default function Signup({ switchToLogin, setUser }) {
           <div className="login-header">
             <div className="login-logo">
               <span className="logo-icon"><i className="fas fa-box"></i></span>
-              <h1>Estoque Pro</h1>
+              <h1>Tech Estoque</h1>
             </div>
             <p className="login-subtitle">Crie sua conta e comece a gerenciar seu estoque</p>
           </div>

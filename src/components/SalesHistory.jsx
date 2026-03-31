@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { demoApi } from '../demo/demoApi';
+import { formatDateBR, formatTimeBR, toDateTimeKeyBR } from '../utils/dateBR';
+import { printReceipt } from '../utils/printReceipt';
 import '../styles/SalesHistory.css';
-const SalesHistory = ({ userId, showToast, formatCurrency }) => {
+const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
   const [salesHistoryGroups, setSalesHistoryGroups] = useState([]);
   const [historyFilter, setHistoryFilter] = useState('');
   const [historyDateFilter, setHistoryDateFilter] = useState('all');
@@ -10,20 +13,58 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
   
   const [showSaleDetailsModal, setShowSaleDetailsModal] = useState(false);
   const [selectedSaleGroup, setSelectedSaleGroup] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editRows, setEditRows] = useState([]);
+  const [saving, setSaving] = useState(false);
 
   const fetchSalesHistory = async () => {
     if (!userId) return;
 
     try {
+      if (demo || userId === 'demo') {
+        const salesData = demoApi.listSales();
+        const productsData = demoApi.listProducts();
+        const salesWithProducts = salesData.map(sale => {
+          const date = sale.sale_date || sale.date || sale.created_at;
+          const total = sale.total_price ?? sale.total ?? sale.totalPrice ?? 0;
+          return {
+            ...sale,
+            date,
+            total,
+            products: productsData.find(p => p.id === sale.product_id) || productsData.find(p => String(p.barcode || '') === String(sale.barcode || ''))
+          };
+        });
+        const grouped = salesWithProducts.reduce((acc, sale) => {
+          const key = toDateTimeKeyBR(sale.date);
+          if (!key) return acc;
+          if (!acc[key]) {
+            acc[key] = {
+              key,
+              saleId: sale.id || null,
+              date: sale.date,
+              items: [],
+              total: 0
+            };
+          } else if (!acc[key].saleId && sale.id) {
+            acc[key].saleId = sale.id;
+          }
+          const saleTotal = sale.total || 0;
+          acc[key].items.push({ ...sale, total: saleTotal });
+          acc[key].total += saleTotal;
+          return acc;
+        }, {});
+        const groupedArray = Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
+        setSalesHistoryGroups(groupedArray);
+        return;
+      }
       const { data: salesData, error: salesError } = await supabase
         .from('sales')
         .select('*')
         .eq('user_id', userId)
-        .order('date', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (salesError) {
-        console.error('Erro ao carregar histórico de vendas:', salesError);
-        showToast('error', 'Erro ao carregar histórico de vendas');
+        showToast?.('Erro ao carregar histórico de vendas', 'danger');
         return;
       }
 
@@ -33,8 +74,7 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
         .eq('user_id', userId);
 
       if (productsError) {
-        console.error('Erro ao carregar produtos:', productsError);
-        showToast('error', 'Erro ao carregar produtos');
+        showToast?.('Erro ao carregar produtos', 'danger');
         return;
       }
 
@@ -54,15 +94,20 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
         if (isNaN(saleDate.getTime())) {
           return acc;
         }
-        
-        const dateKey = saleDate.toISOString();
-        
+
+        const dateKey = toDateTimeKeyBR(saleDate);
+        if (!dateKey) return acc;
+
         if (!acc[dateKey]) {
           acc[dateKey] = {
-            date: dateKey,
+            key: dateKey,
+            saleId: sale.id || null,
+            date: sale.date,
             items: [],
             total: 0
           };
+        } else if (!acc[dateKey].saleId && sale.id) {
+          acc[dateKey].saleId = sale.id;
         }
         
         const saleTotal = sale.total || 0;
@@ -78,8 +123,7 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
       const groupedArray = Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
       setSalesHistoryGroups(groupedArray);
     } catch (error) {
-      console.error('Erro ao buscar histórico:', error);
-      showToast('error', 'Erro ao carregar histórico de vendas');
+      showToast?.('Erro ao carregar histórico de vendas', 'danger');
     }
   };
 
@@ -87,14 +131,22 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
     fetchSalesHistory();
   }, [userId]);
 
+  const qRaw = String(historyFilter || '');
+  const q = qRaw.toLowerCase().trim();
+  const qDigits = q.replace(/\D/g, '');
+  const idOnlySearch = Boolean(qDigits) && /^\s*(id[:#]?\s*)?\d+\s*$/i.test(qRaw);
+
   const filteredSalesHistoryGroups = salesHistoryGroups.filter(group => {
-    // Primeiro verifica se há filtro de texto (produto ou código)
     if (historyFilter) {
+      const idDigits = String(group.saleId || '').replace(/\D/g, '');
+      if (idOnlySearch) return idDigits.includes(qDigits);
+      const idMatch = qDigits ? idDigits.includes(qDigits) : String(group.saleId || '').toLowerCase().includes(q);
+      if (idMatch) return true;
       const hasMatchingProduct = group.items.some(item => {
         const productName = item.products?.name || '';
         const productBarcode = item.products?.barcode || '';
-        return productName.toLowerCase().includes(historyFilter.toLowerCase()) ||
-               productBarcode.toLowerCase().includes(historyFilter.toLowerCase());
+        return productName.toLowerCase().includes(q) ||
+               productBarcode.toLowerCase().includes(q);
       });
       if (!hasMatchingProduct) return false;
     }
@@ -154,6 +206,178 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
   const handleViewSaleDetails = (group) => {
     setSelectedSaleGroup(group);
     setShowSaleDetailsModal(true);
+    setEditMode(false);
+    const rows = (group?.items || []).map(i => ({
+      id: i.id,
+      product_id: i.product_id,
+      name: (i.products?.name && i.products.name.trim()) || (i.product_name || 'Produto'),
+      barcode: i.products?.barcode || i.barcode || '',
+      prevQty: Number(i.quantity || 0),
+      qty: Number(i.quantity || 0),
+      prevUnit: Number(i.unit_price || 0),
+      unit: Number(i.unit_price || 0),
+      cost_unit: Number(i.products?.cost_price || 0)
+    }));
+    setEditRows(rows);
+  };
+
+  const printSaleGroup = (group) => {
+    if (!group) return;
+    const rows = (group.items||[]).map(i=>({
+      name: (i.products?.name && i.products.name.trim()) || (i.product_name || 'Produto'),
+      barcode: i.products?.barcode || i.barcode || '',
+      qty: Number(i.quantity || 1),
+      unit: Number(i.unit_price || 0),
+      total: Number(i.total || 0) || (Number(i.unit_price||0) * Number(i.quantity||1))
+    }));
+    const subtotal = rows.reduce((a,b)=>a+Number(b.total||0),0);
+    const ts = new Date(group.date);
+    printReceipt({ companyName: 'Tech Estoque', title: 'Comprovante de venda', code: group.saleId ? `ID ${group.saleId}` : (group.key || null), date: ts, items: rows, subtotal, discount: 0, total: subtotal });
+  };
+
+  const editTotals = useMemo(() => {
+    const subtotal = editRows.reduce((a, r) => a + (Number(r.qty || 0) * Number(r.unit || 0)), 0);
+    return { subtotal, total: subtotal };
+  }, [editRows]);
+
+  const saveMovement = async ({ product_id, type, quantity, cost_unit, occurred_at }) => {
+    if (!product_id || !(quantity > 0)) return;
+    try {
+      const modern = { user_id: userId, product_id, type, quantity, cost_unit, occurred_at };
+      const legacy = { user_id: userId, product_id, type, quantity };
+      let { error } = await supabase.from('stock_movements').insert([modern]);
+      if (error) ({ error } = await supabase.from('stock_movements').insert([legacy]));
+    } catch {}
+  };
+
+  const applyEdits = async () => {
+    if (!selectedSaleGroup) return;
+    if (demo || userId === 'demo') { showToast?.('Edição não disponível no modo demonstração', 'danger'); return; }
+    setSaving(true);
+    try {
+      const now = new Date().toISOString();
+      for (const r of editRows) {
+        const newQty = Math.max(0, parseInt(String(r.qty || 0), 10) || 0);
+        const newUnit = Number(r.unit || 0);
+        const oldQty = Number(r.prevQty || 0);
+        const diff = newQty - oldQty;
+        const total_price = newQty * newUnit;
+        const cost_total = Number(r.cost_unit || 0) * newQty;
+        const patch = { quantity: newQty, unit_price: newUnit, total_price, total: total_price, cost_total, profit: total_price - cost_total, sale_date: selectedSaleGroup.date, date: selectedSaleGroup.date };
+        const tryUpdate = async (payload) => supabase.from('sales').update(payload).eq('id', r.id).eq('user_id', userId);
+        let { error } = await tryUpdate(patch);
+        if (error && String(error.message || '').toLowerCase().includes('profit')) {
+          const { profit, cost_total, ...rest } = patch;
+          ({ error } = await tryUpdate(rest));
+        }
+        if (error && String(error.message || '').toLowerCase().includes('total_price')) {
+          const { total_price, sale_date, ...rest } = patch;
+          ({ error } = await tryUpdate(rest));
+        }
+        if (error) throw error;
+        if (diff !== 0 && r.product_id) {
+          const { data: prod } = await supabase.from('products').select('id,quantity,cost_price').eq('id', r.product_id).eq('user_id', userId).maybeSingle();
+          const current = Number(prod?.quantity || 0);
+          const nextQty = Math.max(0, current - diff);
+          const { error: upErr } = await supabase.from('products').update({ quantity: nextQty }).eq('id', r.product_id).eq('user_id', userId);
+          if (upErr) throw upErr;
+          if (diff > 0) await saveMovement({ product_id: r.product_id, type: 'saida', quantity: diff, cost_unit: Number(prod?.cost_price || 0), occurred_at: now });
+          if (diff < 0) await saveMovement({ product_id: r.product_id, type: 'entrada', quantity: Math.abs(diff), cost_unit: Number(prod?.cost_price || 0), occurred_at: now });
+        }
+      }
+      showToast?.('Venda atualizada', 'success');
+      setShowSaleDetailsModal(false);
+      setSelectedSaleGroup(null);
+      fetchSalesHistory();
+      try { window.dispatchEvent(new Event('dashboard:refresh')); } catch {}
+    } catch (e) {
+      showToast?.(e?.message || 'Falha ao atualizar venda', 'danger');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const registerReturn = async () => {
+    if (!selectedSaleGroup) return;
+    if (!window.confirm('Registrar devolução (estorno) desta venda?')) return;
+    const now = new Date().toISOString();
+    try {
+      if (demo || userId === 'demo') {
+        const neg = (selectedSaleGroup.items || []).map(i => ({ id: i.product_id || i.id, name: i.product_name || i.products?.name || 'Produto', barcode: i.barcode || i.products?.barcode || '', unit_price: Number(i.unit_price||0), quantity: -Math.abs(Number(i.quantity||0)) }));
+        demoApi.recordSale({ items: neg, discountValue: 0 });
+        showToast?.('Devolução registrada (demo)', 'success');
+        fetchSalesHistory();
+        try { window.dispatchEvent(new Event('dashboard:refresh')); } catch {}
+        return;
+      }
+      let restocked = 0;
+      let skipped = 0;
+      const resolveProductId = async (it) => {
+        const direct = it?.product_id || it?.products?.id;
+        if (direct) return direct;
+        const barcode = String(it?.barcode || it?.products?.barcode || '').trim();
+        if (barcode) {
+          const { data } = await supabase
+            .from('products')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('barcode', barcode)
+            .maybeSingle();
+          if (data?.id) return data.id;
+        }
+        const name = String(it?.product_name || it?.products?.name || '').trim();
+        if (name) {
+          const { data } = await supabase
+            .from('products')
+            .select('id')
+            .eq('user_id', userId)
+            .ilike('name', name)
+            .limit(1);
+          const row = Array.isArray(data) ? data[0] : data;
+          if (row?.id) return row.id;
+        }
+        return null;
+      };
+
+      for (const it of (selectedSaleGroup.items || [])) {
+        const qty = Math.abs(Number(it.quantity || 0));
+        if (!(qty > 0)) { skipped += 1; continue; }
+        const pid = await resolveProductId(it);
+        if (!pid) { skipped += 1; continue; }
+        const unit = Number(it.unit_price || 0);
+        const total = -(qty * unit);
+        const costUnit = Number(it.products?.cost_price || 0);
+        const costTotal = -(costUnit * qty);
+        const row = { user_id: userId, product_id: pid, product_name: it.product_name || it.products?.name || 'Produto', barcode: it.barcode || it.products?.barcode || null, quantity: -qty, unit_price: unit, total_price: total, total, cost_total: costTotal, profit: total - costTotal, sale_date: now };
+        const tryInsert = async (payload) => supabase.from('sales').insert([payload]);
+        let { error } = await tryInsert(row);
+        if (error && String(error.message || '').toLowerCase().includes('profit')) {
+          const { profit, cost_total, ...rest } = row;
+          ({ error } = await tryInsert(rest));
+        }
+        if (error && String(error.message || '').toLowerCase().includes('total_price')) {
+          const { total_price, sale_date, ...rest } = row;
+          ({ error } = await tryInsert(rest));
+        }
+        if (error) throw error;
+        const { data: prod } = await supabase.from('products').select('id,quantity,cost_price').eq('id', pid).eq('user_id', userId).maybeSingle();
+        const cur = Number(prod?.quantity || 0);
+        const next = cur + qty;
+        const { error: upErr } = await supabase.from('products').update({ quantity: next }).eq('id', pid).eq('user_id', userId);
+        if (upErr) throw upErr;
+        await saveMovement({ product_id: pid, type: 'entrada', quantity: qty, cost_unit: Number(prod?.cost_price || 0), occurred_at: now });
+        restocked += 1;
+      }
+      if (restocked > 0 && skipped === 0) showToast?.('Devolução registrada', 'success');
+      else if (restocked > 0 && skipped > 0) showToast?.(`Devolução registrada (${restocked} itens). ${skipped} itens ignorados por falta de vínculo com produto.`, 'success');
+      else showToast?.('Não foi possível devolver: itens sem produto vinculado', 'danger');
+      setShowSaleDetailsModal(false);
+      setSelectedSaleGroup(null);
+      fetchSalesHistory();
+      try { window.dispatchEvent(new Event('dashboard:refresh')); } catch {}
+    } catch (e) {
+      showToast?.(e?.message || 'Falha ao registrar devolução', 'danger');
+    }
   };
 
   return (
@@ -169,7 +393,7 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
             <div className="history-filters">
               <input 
                 type="text" 
-                placeholder="Buscar por produto..." 
+                placeholder="Buscar por ID (ex: 862 ou ID 862), produto ou código..." 
                 className="filter-input"
                 value={historyFilter}
                 onChange={(e) => setHistoryFilter(e.target.value)}
@@ -228,25 +452,19 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
             
             <div className="history-list">
               {pagedFilteredSalesHistoryGroups.map(group => (
-                <div className="history-item-card" key={group.date}>
+                <div className="history-item-card" key={group.key || group.date}>
                   <div className="history-card-header">
                     <div className="history-date">
                       <i className="fas fa-calendar-alt"></i>
-                      <span>{(() => {
-                        const date = new Date(group.date);
-                        return isNaN(date.getTime()) ? 'Data inválida' : date.toLocaleDateString('pt-BR', { 
-                          day: '2-digit', 
-                          month: '2-digit', 
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        });
-                      })()}</span>
+                      <span>{formatDateBR(group.date)} {formatTimeBR(group.date)}</span>
                     </div>
                     <div className="history-total">
                       <span className="total-label">Total:</span>
                       <span className="total-value">{formatCurrency(group.total)}</span>
                     </div>
+                  </div>
+                  <div className="history-meta-row">
+                    <span className="history-sale-id"><span className="history-sale-id-label">ID</span> {group.saleId || '—'}</span>
                   </div>
                   
                   <div className="history-items">
@@ -278,6 +496,9 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
                     <div className="sale-actions">
                       <button className="btn-outline btn-sm" onClick={() => handleViewSaleDetails(group)}>
                         <i className="fas fa-eye"></i> Detalhes
+                      </button>
+                      <button className="btn-outline btn-sm" onClick={() => printSaleGroup(group)}>
+                        <i className="fas fa-print"></i> Imprimir
                       </button>
                     </div>
                   </div>
@@ -317,6 +538,10 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
                   </span>
                 </div>
                 <div className="sale-info-row">
+                  <span className="label">Código:</span>
+                  <span className="value">{selectedSaleGroup.saleId || selectedSaleGroup.key || '—'}</span>
+                </div>
+                <div className="sale-info-row">
                   <span className="label">Total de Itens:</span>
                   <span className="value">{selectedSaleGroup.items.length}</span>
                 </div>
@@ -327,34 +552,74 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
               </div>
               
               <div className="items-section">
-                <h3>Produtos Vendidos</h3>
-                <div className="items-list">
-                  {selectedSaleGroup.items.map((item, idx) => (
-                    <div className="item-card" key={idx}>
-                      <div className="item-header">
-                        <span className="item-name">
-                          {(item.products?.name && item.products.name.trim()) || 
-                           (item.products?.barcode ? `Produto ${item.products.barcode}` : 'Produto sem nome')}
-                        </span>
-                        <span className="item-total">{formatCurrency(item.total || 0)}</span>
-                      </div>
-                      <div className="item-details">
-                        {item.products?.barcode && (
-                          <div className="item-detail">
-                            <strong>Código:</strong> {item.products.barcode}
-                          </div>
-                        )}
-                        <div className="item-detail">
-                          <strong>Quantidade:</strong> {item.quantity}
-                        </div>
-                        <div className="item-detail">
-                          <strong>Preço Unit.:</strong> {formatCurrency(item.unit_price || 0)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap: 10, marginBottom: 10 }}>
+                  <h3 style={{ margin: 0 }}>Itens</h3>
+                  <div style={{ display:'flex', gap: 10, flexWrap:'wrap', justifyContent:'flex-end' }}>
+                    <button className="btn-outline btn-sm" onClick={()=>setEditMode(v=>!v)} disabled={saving}>
+                      <i className="fas fa-pen"></i> {editMode ? 'Cancelar edição' : 'Editar venda'}
+                    </button>
+                    <button className="btn-outline btn-sm" onClick={registerReturn} disabled={saving}>
+                      <i className="fas fa-undo"></i> Devolução
+                    </button>
+                  </div>
+                </div>
+                <div className="table-responsive">
+                  <table className="products-table">
+                    <thead>
+                      <tr>
+                        <th>Produto</th>
+                        <th>Código</th>
+                        <th className="num">Qtd</th>
+                        <th className="num">Unitário</th>
+                        <th className="num">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(editMode ? editRows : editRows.map(r=>({ ...r, qty: r.prevQty, unit: r.prevUnit }))).map((r, idx) => (
+                        <tr key={r.id || idx}>
+                          <td className="name">{r.name}</td>
+                          <td>{r.barcode || '—'}</td>
+                          <td className="num">
+                            {editMode ? (
+                              <input className="form-input" style={{ width: 92 }} type="number" min="0" value={r.qty} onChange={(e)=>setEditRows(prev=>prev.map(x=>x.id===r.id?{...x, qty:e.target.value}:x))} />
+                            ) : (
+                              Number(r.prevQty || 0)
+                            )}
+                          </td>
+                          <td className="num">
+                            {editMode ? (
+                              <input className="form-input" style={{ width: 120 }} type="number" step="0.01" min="0" value={r.unit} onChange={(e)=>setEditRows(prev=>prev.map(x=>x.id===r.id?{...x, unit:e.target.value}:x))} />
+                            ) : (
+                              formatCurrency(r.prevUnit || 0)
+                            )}
+                          </td>
+                          <td className="num">{formatCurrency(Number((editMode ? r.qty : r.prevQty) || 0) * Number((editMode ? r.unit : r.prevUnit) || 0))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {editMode && (
+                      <tfoot>
+                        <tr>
+                          <td colSpan={4} className="num">Total</td>
+                          <td className="num">{formatCurrency(editTotals.total)}</td>
+                        </tr>
+                      </tfoot>
+                    )}
+                  </table>
                 </div>
               </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-outline" onClick={() => setShowSaleDetailsModal(false)} disabled={saving}>Fechar</button>
+              {editMode ? (
+                <button className="btn-success" onClick={applyEdits} disabled={saving}>
+                  <i className="fas fa-save"></i> {saving ? 'Salvando...' : 'Salvar alterações'}
+                </button>
+              ) : (
+                <button className="btn-primary" onClick={() => printSaleGroup(selectedSaleGroup)}>
+                  <i className="fas fa-print"></i> Imprimir
+                </button>
+              )}
             </div>
           </div>
         </div>

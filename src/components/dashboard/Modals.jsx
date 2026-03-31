@@ -54,6 +54,8 @@ export function ConfirmSaleModal({
   discount,
   total,
   formatCurrency,
+  printAfter,
+  setPrintAfter,
   onClose,
   onConfirm,
   busy
@@ -91,6 +93,12 @@ export function ConfirmSaleModal({
             <div className="summary-row"><span>Subtotal</span><strong>{formatCurrency(subtotal)}</strong></div>
             {Number(discount||0) > 0 && (<div className="summary-row discount-row"><span>Desconto</span><strong>-{formatCurrency(discount)}</strong></div>)}
             <div className="summary-row"><span>Total</span><strong>{formatCurrency(total)}</strong></div>
+          </div>
+          <div style={{ marginTop: 12, display:'flex', justifyContent:'space-between', alignItems:'center', gap: 10 }}>
+            <label style={{ display:'flex', alignItems:'center', gap: 10, fontWeight: 700 }}>
+              <input type="checkbox" checked={Boolean(printAfter)} onChange={(e)=>setPrintAfter?.(e.target.checked)} />
+              Imprimir comprovante após registrar
+            </label>
           </div>
         </div>
         <div className="modal-footer">

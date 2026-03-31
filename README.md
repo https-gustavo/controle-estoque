@@ -1,17 +1,19 @@
 # Sistema de Controle de Estoque
 
-Um sistema moderno e intuitivo para gerenciamento de estoque e vendas, desenvolvido com React e Supabase.
+Um mini ERP (estoque + vendas + financeiro) desenvolvido com React + Vite e Supabase.
 
 ## Funcionalidades
 
 - **Autenticação Segura**: Sistema completo de login, cadastro e recuperação de senha
 - **Gerenciamento de Produtos**: Adicionar, editar, remover e controlar estoque de produtos
 - **Sistema de Vendas**: Carrinho de vendas com busca inteligente e aplicação de descontos
-- **Calculadora de Custos**: Ferramenta para calcular preços com impostos e margem de lucro
-- **Dashboard Completo**: Interface intuitiva com estatísticas e relatórios
+- **Financeiro**: Despesas, custo dos produtos (COGS) e lucro líquido no dashboard
+- **Dashboard Completo**: KPIs e gráfico comparativo (Receita x Despesas x Lucro)
 - **Histórico Detalhado**: Visualização completa das transações com filtros avançados
+- **Leitor de Código de Barras**: Suporte a scanners HID (USB/Bluetooth) para operação rápida (entrada e vendas)
 - **Tema Escuro/Claro**: Interface adaptável às preferências do usuário
 - **Configurações Personalizáveis**: Personalização da empresa com logo e informações
+- **Modo Demonstração**: Acesso sem login para portfólio (dados locais no navegador)
 
 ## Tecnologias Utilizadas
 
@@ -26,7 +28,7 @@ Um sistema moderno e intuitivo para gerenciamento de estoque e vendas, desenvolv
 
 1. Clone o repositório:
 ```bash
-git clone https://github.com/seu-usuario/controle-estoque.git
+git clone https://github.com/https-gustavo/controle-estoque.git
 cd controle-estoque
 ```
 
@@ -43,12 +45,23 @@ VITE_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
 ```
 
 4. Configure o banco de dados:
-Execute o script SQL em `supabase/create_tables.sql` no seu projeto Supabase.
+- Execute o script SQL em `supabase/create_tables.sql` no seu projeto Supabase (tabelas base).
+- Para o módulo financeiro (despesas/lucro), aplique também:
+  - `supabase/migrations/2026-03-30-finance-expenses-and-profit.sql`
 
 5. Execute o projeto:
 ```bash
 npm run dev
 ```
+
+## Modo Demonstração
+
+Na tela de login, clique em **Ver demonstração**.
+
+- Não exige login
+- Não grava nada no Supabase
+- Salva alterações apenas no navegador (localStorage)
+- Exibe um banner “Modo demonstração” no dashboard
 
 ## Como Usar
 
@@ -69,11 +82,10 @@ npm run dev
 - Aplique descontos percentuais ou valores fixos
 - Finalize vendas com atualização automática do estoque
 
-### Calculadora de Custos
-- Calcule preços considerando impostos (ICMS, IPI, PIS, COFINS, ISS)
-- Inclua custos adicionais como frete e embalagem
-- Defina margem de lucro desejada
-- Aplique preços calculados diretamente aos produtos
+### Financeiro
+- Cadastre despesas por período e acompanhe no dashboard
+- Veja custo dos produtos vendidos (COGS) e lucro líquido no período
+- Exporte CSV (vendas, top produtos, baixo estoque, despesas)
 
 ### Relatórios e Histórico
 - Visualize estatísticas de vendas no dashboard
@@ -92,6 +104,9 @@ src/
 │   ├── ForgotPassword.jsx     # Recuperação de senha
 │   ├── ResetPassword.jsx      # Redefinição de senha
 │   └── SalesHistory.jsx       # Histórico de vendas
+├── demo/                      # Modo demonstração (dados locais)
+├── hooks/                     # Hooks (ex: scanner)
+├── utils/                     # Utilitários (ex: datas BR)
 ├── styles/
 │   ├── Dashboard.css          # Estilos do dashboard
 │   ├── Login.css              # Estilos do login/auth
@@ -108,6 +123,8 @@ src/
 - `npm run dev` - Inicia o servidor de desenvolvimento
 - `npm run build` - Gera a build de produção
 - `npm run preview` - Visualiza a build de produção
+- `npm run api` - Sobe a API local (quando aplicável)
+- `npm run dev:full` - Frontend + API (quando aplicável)
 
 ## Configuração do Supabase
 
@@ -125,6 +142,7 @@ Execute o script SQL em `supabase/create_tables.sql` no seu projeto Supabase par
 1. **products**: Armazena informações dos produtos
 2. **sales**: Registra as vendas realizadas
 3. **store_settings**: Configurações da empresa
+4. **expenses**: Despesas (via migration financeira)
 
 ### Políticas de Segurança (RLS)
 

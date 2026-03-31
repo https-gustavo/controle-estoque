@@ -1,19 +1,14 @@
 import { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
-import '../styles/Login.css';
-
-/**
- * Componente de login com interface moderna
- * Inclui validação, toggle de senha e navegação automática
- */
-export default function Login({ switchToSignup, switchToForgotPassword, setUser }) {
-  // Estados do formulário de login
+import '../styles/NeonLogin.css';
+export default function Login({ switchToSignup, switchToForgotPassword, setUser, onStartDemo }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showCreatorLogo, setShowCreatorLogo] = useState(true);
   const navigate = useNavigate();
 
   /**
@@ -27,7 +22,9 @@ export default function Login({ switchToSignup, switchToForgotPassword, setUser 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     
     if (error) {
-      setMessage(error.message);
+      const msg = String(error.message || '');
+      const friendly = msg.toLowerCase().includes('invalid') ? 'Email ou senha inválidos' : msg;
+      setMessage(friendly);
     } else {
       setUser(data.user);
       setMessage('Login bem-sucedido!');
@@ -37,120 +34,164 @@ export default function Login({ switchToSignup, switchToForgotPassword, setUser 
     setLoading(false);
   };
 
-  // Permite login com Enter
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleLogin();
-    }
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter') handleLogin();
   };
 
+  const startDemo = () => {
+    try { onStartDemo?.(); } finally { navigate('/dashboard'); }
+  };
+
+
   return (
-    <div className="login-container">
-      <div className="login-background">
-        <div className="login-card grid">
-          {/* HERO LATERAL */}
-          <div className="login-hero">
-            <div className="hero-overlay">
-              <div className="hero-content">
-                <div className="login-logo">
-                  <span className="logo-icon"><i className="fas fa-box"></i></span>
-                  <h1>Estoque Pro</h1>
-                </div>
-                <p className="login-subtitle">Gerencie seu estoque com eficiência e controle total.</p>
-                <ul className="hero-highlights">
-                  <li><i className="fas fa-check"></i> Painel de controle intuitivo</li>
-                  <li><i className="fas fa-check"></i> Gestão completa de produtos</li>
-                  <li><i className="fas fa-check"></i> Sistema seguro e confiável</li>
-                </ul>
-              </div>
+    <div className="nl-root">
+      <div className="nl-grid" />
+      <div className="nl-blob a" />
+      <div className="nl-blob b" />
+      <div className="nl-blob c" />
+
+      <div className="nl-shell">
+        <section className="nl-left" aria-label="Apresentação">
+          <div className="nl-brand">
+            <span className="nl-mark"><i className="fas fa-box"></i></span>
+            <span>Tech Estoque</span>
+          </div>
+          <h1 className="nl-headline">
+            Controle total. <span>Simples.</span> Inteligente.
+          </h1>
+          <p className="nl-tagline">
+            Um mini ERP com estoque, vendas e financeiro em tempo real. Pronto para operação e portfólio.
+          </p>
+          <div className="nl-features" aria-label="Recursos">
+            <div className="nl-feature">
+              <div className="nl-feature-k"><i className="fas fa-eye"></i> Demo</div>
+              <div className="nl-feature-v">Entrar como visitante sem afetar dados reais</div>
+            </div>
+            <div className="nl-feature">
+              <div className="nl-feature-k"><i className="fas fa-layer-group"></i> Cadastro em lote</div>
+              <div className="nl-feature-v">Monte uma lista de produtos antes de salvar</div>
+            </div>
+            <div className="nl-feature">
+              <div className="nl-feature-k"><i className="fas fa-barcode"></i> Scanner</div>
+              <div className="nl-feature-v">Leitor de código de barras para operação rápida</div>
             </div>
           </div>
 
-          {/* FORMULÁRIO */}
-          <div className="login-content">
-            <div className="login-header">
-              <p className="login-subtitle">Acesse sua conta para continuar</p>
-            </div>
-
-            <div className="login-form">
-              <div className="form-group">
-                <label htmlFor="email">E-mail</label>
-                <div className="input-wrapper">
-                  <i className="fas fa-envelope input-icon"></i>
-                  <input
-                    id="email"
-                    type="email"
-                    placeholder="Digite seu e-mail"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    className="form-input"
-                  />
+          <div className="nl-mock" aria-label="Mock do dashboard">
+            <div className="nl-mock-inner">
+              <div className="nl-mock-top">
+                <div className="nl-mock-title">Dashboard</div>
+                <div className="nl-pills" aria-label="Recursos">
+                  <span className="nl-pill">Receita</span>
+                  <span className="nl-pill">Despesas</span>
+                  <span className="nl-pill">Lucro</span>
                 </div>
               </div>
+              <div className="nl-mock-note">Preview ilustrativo</div>
+              <div className="nl-mock-grid">
+                <div className="nl-mini">
+                  <div className="nl-mini-k">Receita</div>
+                  <div className="nl-mini-v">R$ —</div>
+                </div>
+                <div className="nl-mini">
+                  <div className="nl-mini-k">Lucro</div>
+                  <div className="nl-mini-v">R$ —</div>
+                </div>
+                <div className="nl-mini">
+                  <div className="nl-mini-k">Estoque</div>
+                  <div className="nl-mini-v">— itens</div>
+                </div>
+              </div>
+              <div className="nl-spark" aria-label="Gráfico animado">
+                <svg viewBox="0 0 320 54" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="nlGrad" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="rgba(34,211,238,0.95)" />
+                      <stop offset="50%" stopColor="rgba(168,85,247,0.95)" />
+                      <stop offset="100%" stopColor="rgba(59,130,246,0.95)" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M10 40 C 40 10, 70 44, 100 18 S 160 48, 190 22 S 250 40, 310 14" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
 
-              <div className="form-group">
-                <label htmlFor="password">Senha</label>
-                <div className="input-wrapper">
-                  <i className="fas fa-lock input-icon"></i>
+        <section className="nl-right" aria-label="Login">
+          <div className="nl-card" aria-busy={loading}>
+            <div className="nl-card-inner">
+              <div className="nl-card-head">
+                <h2 className="nl-title">Entrar</h2>
+                <p className="nl-sub">Acesse sua conta ou entre como visitante</p>
+              </div>
+              <div className="nl-form">
+                <div className="nl-field">
+                  <span className="nl-icon"><i className="fas fa-envelope"></i></span>
                   <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Digite sua senha"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    className="form-input"
+                    id="nl-email"
+                    type="email"
+                    value={email}
+                    onChange={(e)=>setEmail(e.target.value)}
+                    onKeyDown={onKeyDown}
+                    placeholder=" "
+                    autoComplete="email"
                   />
-                  <button
-                    type="button"
-                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                    className="toggle-password"
-                    onClick={() => setShowPassword((v) => !v)}
-                  >
+                  <label htmlFor="nl-email">E-mail</label>
+                </div>
+                <div className="nl-field">
+                  <span className="nl-icon"><i className="fas fa-lock"></i></span>
+                  <input
+                    id="nl-pass"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e)=>setPassword(e.target.value)}
+                    onKeyDown={onKeyDown}
+                    placeholder=" "
+                    autoComplete="current-password"
+                  />
+                  <label htmlFor="nl-pass">Senha</label>
+                  <button type="button" className="nl-eye" aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} onClick={()=>setShowPassword(v=>!v)}>
                     <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                   </button>
                 </div>
-              </div>
 
-              <button 
-                className={`btn-primary login-btn ${loading ? 'loading' : ''}`} 
-                onClick={handleLogin}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin"></i>
-                    Entrando...
-                  </>
-                ) : (
-                  <>
-                    <i className="fas fa-sign-in-alt"></i>
-                    Entrar
-                  </>
-                )}
-              </button>
-
-              <div className="login-footer">
-                <p className="forgot-password" onClick={switchToForgotPassword}>
-                  <i className="fas fa-key"></i>
-                  Esqueci minha senha
-                </p>
-                <p className="auth-switch" onClick={switchToSignup}>
-                  Ainda não tem conta? <span>Criar conta</span>
-                </p>
-              </div>
-
-              {message && (
-                <div className={`auth-message ${message.includes('sucedido') ? 'success' : 'error'}`}>
-                  <i className={`fas ${message.includes('sucedido') ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i>
-                  {message}
+                <div className="nl-actions">
+                  <button className="nl-btn primary" onClick={handleLogin} disabled={loading || !email || !password}>
+                    {loading ? <><i className="fas fa-spinner fa-spin"></i>Entrando...</> : <>Entrar</>}
+                  </button>
+                  <button className="nl-btn secondary" type="button" onClick={startDemo} disabled={loading}>
+                    Entrar como visitante
+                  </button>
                 </div>
-              )}
+
+                <div className="nl-links">
+                  <button className="nl-link" type="button" onClick={switchToForgotPassword}>Esqueci minha senha</button>
+                  <button className="nl-link" type="button" onClick={switchToSignup}>Criar conta</button>
+                </div>
+
+                {message && (
+                  <div role="alert" aria-live="polite" className={`nl-alert ${message.includes('sucedido') ? 'success' : 'error'}`}>
+                    {message}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </section>
       </div>
+
+      <a className="nl-creditline" href="https://techsolutions.net.br" target="_blank" rel="noopener noreferrer" aria-label="Créditos">
+        {showCreatorLogo && (
+          <img
+            className="nl-credit-logo"
+            src="/creator-logo.png"
+            alt=""
+            onError={() => setShowCreatorLogo(false)}
+          />
+        )}
+        <span>Desenvolvido por</span>
+      </a>
     </div>
   );
 }

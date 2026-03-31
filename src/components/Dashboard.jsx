@@ -13,9 +13,11 @@ import ExpensesPanel from './dashboard/ExpensesPanel';
 import SettingsPanel from './dashboard/SettingsPanel';
 import DashboardPanel from './dashboard/DashboardPanel';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
+import { demoApi } from '../demo/demoApi';
+import { printReceipt } from '../utils/printReceipt';
 import '../styles/Dashboard.css';
 
-export default function Dashboard({ setUser }) {
+export default function Dashboard({ setUser, demo, onExitDemo }) {
   const navigate = useNavigate();
   const [userId, setUserId] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
@@ -25,7 +27,7 @@ export default function Dashboard({ setUser }) {
   const [error, setError] = useState('');
   const [toast, setToast] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [companySettings, setCompanySettings] = useState({ name: 'Estoque Pro', logo: '' });
+  const [companySettings, setCompanySettings] = useState({ name: 'Tech Estoque', logo: '' });
 
   // Produtos
   const [products, setProducts] = useState([]);
@@ -85,12 +87,33 @@ export default function Dashboard({ setUser }) {
   const cartTotal = Math.max(0, cartSubtotal - discountValue);
   const [showConfirmSale, setShowConfirmSale] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const [printAfterSale, setPrintAfterSale] = useState(true);
   const handleFinalizeSale = () => {
     if (salesCart.length === 0) return;
     setShowConfirmSale(true);
   };
   const persistSale = async () => {
     if (!userId || salesCart.length === 0) { setShowConfirmSale(false); return; }
+    if (isDemo) {
+      setConfirmBusy(true);
+      try {
+        demoApi.recordSale({ items: salesCart, discountValue });
+        setSalesCart([]); setSaleDiscount('');
+        fetchProducts('demo');
+        showToast('Venda registrada (demo)', 'success');
+        try { window.dispatchEvent(new Event('dashboard:refresh')); } catch {}
+        if (printAfterSale) {
+          const rows = salesCart.map(i=>({ name:i.name, barcode:i.barcode||'', qty:Number(i.quantity||1), unit:Number(i.unit_price||0), total:Number(i.unit_price||0)*Number(i.quantity||1) }));
+          printReceipt({ companyName: companySettings?.name || 'Tech Estoque', title: 'Comprovante de venda', code: null, date: new Date(), items: rows, subtotal: Number(cartSubtotal||0), discount: Number(discountValue||0), total: Number(cartTotal||0) });
+        }
+      } catch {
+        showToast('Falha ao registrar venda (demo)', 'danger');
+      } finally {
+        setConfirmBusy(false);
+        setShowConfirmSale(false);
+      }
+      return;
+    }
     for (const item of salesCart) {
       const p = products.find(pr => String(pr.id) === String(item.id) || (item.barcode && pr.barcode === item.barcode));
       const cost = Number(p?.cost_price || 0);
@@ -172,6 +195,10 @@ export default function Dashboard({ setUser }) {
       setSalesCart([]); setSaleDiscount('');
       showToast('Venda registrada com sucesso', 'success');
       try { window.dispatchEvent(new Event('dashboard:refresh')); } catch {}
+      if (printAfterSale) {
+        const rows = salesCart.map(i=>({ name:i.name, barcode:i.barcode||'', qty:Number(i.quantity||1), unit:Number(i.unit_price||0), total:Number(i.unit_price||0)*Number(i.quantity||1) }));
+        printReceipt({ companyName: companySettings?.name || 'Tech Estoque', title: 'Comprovante de venda', code: null, date: new Date(), items: rows, subtotal: Number(cartSubtotal||0), discount: Number(discountValue||0), total: Number(cartTotal||0) });
+      }
     } catch (e) {
       showToast(e?.message || 'Falha ao registrar venda', 'danger');
     } finally {
@@ -184,6 +211,8 @@ export default function Dashboard({ setUser }) {
     setToast({ message, type });
     setTimeout(() => setToast(null), ms);
   };
+
+  const isDemo = Boolean(demo) || userId === 'demo';
 
   useBarcodeScanner((code, e) => {
     const barcode = String(code || '').trim();
@@ -226,6 +255,11 @@ export default function Dashboard({ setUser }) {
 
   useEffect(() => {
     let cancelled = false;
+    if (demo) {
+      setUserId('demo');
+      fetchProducts('demo');
+      return () => { cancelled = true; };
+    }
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (cancelled) return;
@@ -245,6 +279,10 @@ export default function Dashboard({ setUser }) {
 
   const fetchProducts = async (uid = userId) => {
     if (!uid) return;
+    if (uid === 'demo') {
+      setProducts(demoApi.listProducts());
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -276,10 +314,14 @@ export default function Dashboard({ setUser }) {
     setLoading(true);
     setError('');
     try {
-      const { error } = await supabase
-        .from('products')
-        .insert([{ user_id: userId, name, barcode, quantity, cost_price, sale_price }]);
-      if (error) throw error;
+      if (isDemo) {
+        demoApi.createProduct({ name, barcode, quantity, cost_price, sale_price });
+      } else {
+        const { error } = await supabase
+          .from('products')
+          .insert([{ user_id: userId, name, barcode, quantity, cost_price, sale_price }]);
+        if (error) throw error;
+      }
       clearForm();
       fetchProducts();
       showToast('Produto criado');
@@ -296,12 +338,16 @@ export default function Dashboard({ setUser }) {
     setLoading(true);
     setError('');
     try {
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', userId);
-      if (error) throw error;
+      if (isDemo) {
+        demoApi.deleteProduct(id);
+      } else {
+        const { error } = await supabase
+          .from('products')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', userId);
+        if (error) throw error;
+      }
       setProducts(prev => prev.filter(p => p.id !== id));
       showToast('Produto excluído', 'success');
     } catch (e) {
@@ -323,13 +369,17 @@ export default function Dashboard({ setUser }) {
         cost_price: Number(patch.cost_price || 0),
         sale_price: Number(patch.sale_price || 0)
       };
-      const tryUpdate = async (payload) => supabase.from('products').update(payload).eq('id', id).eq('user_id', userId);
-      let { error } = await tryUpdate(clean);
-      if (error && String(error.message || '').toLowerCase().includes('category')) {
-        const { category, ...rest } = clean;
-        ({ error } = await tryUpdate(rest));
+      if (isDemo) {
+        demoApi.updateProduct(id, clean);
+      } else {
+        const tryUpdate = async (payload) => supabase.from('products').update(payload).eq('id', id).eq('user_id', userId);
+        let { error } = await tryUpdate(clean);
+        if (error && String(error.message || '').toLowerCase().includes('category')) {
+          const { category, ...rest } = clean;
+          ({ error } = await tryUpdate(rest));
+        }
+        if (error) throw error;
       }
-      if (error) throw error;
       setProducts(prev => prev.map(p => p.id === id ? { ...p, ...clean } : p));
       showToast('Produto atualizado', 'success');
     } catch (e) {
@@ -341,36 +391,51 @@ export default function Dashboard({ setUser }) {
   };
 
   useEffect(() => {
+    const createOne = async (payload, { silent } = {}) => {
+      const name = String(payload?.name||'').trim();
+      const barcode = String(payload?.barcode||'').trim();
+      const cost_price = Number(payload?.cost_price||0);
+      const sale_price = Number(payload?.sale_price||0);
+      const category = String(payload?.category||'').trim();
+      const margin = Number(payload?.margin||0);
+      const quantity = parseInt(String(payload?.quantity ?? '0'), 10) || 0;
+      if (!name) { if (!silent) showToast('Informe nome do produto', 'danger'); return { ok: false, reason: 'name' }; }
+
+      const existing = products.find(p => (barcode && String(p.barcode||'')===barcode) || String(p.name||'').toLowerCase()===name.toLowerCase());
+      if (existing) {
+        if (!silent) {
+          showToast('Produto já existe. Use a tela Entrada para ajustar estoque.', 'danger');
+          handleTabChange('entrada');
+        }
+        return { ok: false, reason: 'exists' };
+      }
+
+      const row = { user_id: userId, name, barcode, quantity: Math.max(0, quantity), cost_price, sale_price };
+      if (category) row.category = category;
+      if (margin) row.margin = margin;
+
+      if (isDemo) {
+        demoApi.createProduct(row);
+        return { ok: true };
+      }
+
+      const tryInsert = async (payload) => supabase.from('products').insert([payload]);
+      let { error } = await tryInsert(row);
+      if (error && (String(error.message || '').toLowerCase().includes('category') || String(error.message || '').toLowerCase().includes('margin'))) {
+        const { category, margin, ...rest } = row;
+        ({ error } = await tryInsert(rest));
+      }
+      if (error) throw error;
+      return { ok: true };
+    };
+
     const onAdd = async (evt) => {
       if (!userId) return;
-      const payload = evt.detail || {};
-      const name = String(payload.name||'').trim();
-      const barcode = String(payload.barcode||'').trim();
-      const cost_price = Number(payload.cost_price||0);
-      const sale_price = Number(payload.sale_price||0);
-      const category = String(payload.category||'').trim();
-      const margin = Number(payload.margin||0);
-      if (!name) { showToast('Informe nome do produto', 'danger'); return; }
       setLoading(true);
       setError('');
       try {
-        const existing = products.find(p => (barcode && String(p.barcode||'')===barcode) || String(p.name||'').toLowerCase()===name.toLowerCase());
-        if (existing) {
-          showToast('Produto já existe. Use a tela Entrada para ajustar estoque.', 'danger');
-          handleTabChange('entrada');
-          return;
-        }
-        const row = { user_id: userId, name, barcode, quantity: 0, cost_price, sale_price };
-        if (category) row.category = category;
-        if (margin) row.margin = margin;
-        const tryInsert = async (payload) => supabase.from('products').insert([payload]);
-        let { error } = await tryInsert(row);
-        if (error && (String(error.message || '').toLowerCase().includes('category') || String(error.message || '').toLowerCase().includes('margin'))) {
-          const { category, margin, ...rest } = row;
-          ({ error } = await tryInsert(rest));
-        }
-        if (error) throw error;
-        fetchProducts();
+        await createOne(evt.detail || {});
+        await fetchProducts(isDemo ? 'demo' : userId);
         showToast('Produto criado', 'success');
       } catch (e) {
         setError(e?.message || 'Falha ao salvar produto');
@@ -378,11 +443,46 @@ export default function Dashboard({ setUser }) {
         setLoading(false);
       }
     };
+
+    const onAddMany = async (evt) => {
+      if (!userId) return;
+      const arr = Array.isArray(evt?.detail?.items) ? evt.detail.items : [];
+      if (!arr.length) return;
+      setLoading(true);
+      setError('');
+      try {
+        let ok = 0;
+        let skipped = 0;
+        for (const it of arr) {
+          const res = await createOne(it, { silent: true });
+          if (res.ok) ok += 1; else skipped += 1;
+        }
+        await fetchProducts(isDemo ? 'demo' : userId);
+        if (ok > 0 && skipped === 0) showToast(`${ok} produtos criados`, 'success');
+        else if (ok > 0 && skipped > 0) showToast(`${ok} criados, ${skipped} ignorados`, 'success');
+        else showToast('Nenhum produto criado', 'danger');
+      } catch (e) {
+        setError(e?.message || 'Falha ao salvar produtos');
+        showToast('Erro ao criar produtos', 'danger');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     window.addEventListener('products:add', onAdd);
-    return () => window.removeEventListener('products:add', onAdd);
-  }, [userId, products]);
+    window.addEventListener('products:addMany', onAddMany);
+    return () => {
+      window.removeEventListener('products:add', onAdd);
+      window.removeEventListener('products:addMany', onAddMany);
+    };
+  }, [userId, products, isDemo]);
 
   const handleLogout = async () => {
+    if (isDemo) {
+      await onExitDemo?.();
+      navigate('/', { replace: true });
+      return;
+    }
     try { await supabase.auth.signOut(); } finally { setUser?.(null); navigate('/', { replace: true }); }
   };
 
@@ -414,8 +514,12 @@ export default function Dashboard({ setUser }) {
     if (Number.isNaN(quantity) || quantity < 0) { showToast('Quantidade inválida', 'danger'); return; }
     setLoading(true);
     try {
-      const { error } = await supabase.from('products').update({ quantity }).eq('id', selectedProduct.id).eq('user_id', userId);
-      if (error) throw error;
+      if (isDemo) {
+        demoApi.updateProduct(selectedProduct.id, { quantity });
+      } else {
+        const { error } = await supabase.from('products').update({ quantity }).eq('id', selectedProduct.id).eq('user_id', userId);
+        if (error) throw error;
+      }
       setProducts(prev => prev.map(p => p.id === selectedProduct.id ? { ...p, quantity } : p));
       setShowQuantityModal(false);
       setSelectedProduct(null);
@@ -433,8 +537,12 @@ export default function Dashboard({ setUser }) {
     if (editSalePrice !== '') patch.sale_price = Number(String(editSalePrice).replace(',', '.'));
     setLoading(true);
     try {
-      const { error } = await supabase.from('products').update(patch).eq('id', selectedProduct.id).eq('user_id', userId);
-      if (error) throw error;
+      if (isDemo) {
+        demoApi.updateProduct(selectedProduct.id, patch);
+      } else {
+        const { error } = await supabase.from('products').update(patch).eq('id', selectedProduct.id).eq('user_id', userId);
+        if (error) throw error;
+      }
       setProducts(prev => prev.map(p => p.id === selectedProduct.id ? { ...p, ...patch } : p));
       setShowPriceModal(false);
       setSelectedProduct(null);
@@ -461,9 +569,20 @@ export default function Dashboard({ setUser }) {
         <div className={`main-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
           <DashboardHeader sidebarOpen={sidebarOpen} onToggle={toggleSidebar} />
 
+          {isDemo && (
+            <div className="card" style={{ margin: '0 0 14px', padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800 }}>Modo demonstração</div>
+                <div className="helper-text">Alterações não afetam dados reais e ficam apenas no navegador.</div>
+              </div>
+              <button className="btn-outline" onClick={handleLogout}>Sair do demo</button>
+            </div>
+          )}
+
           {activeTab === 'dashboard' && (
             <DashboardPanel
               userId={userId}
+              demo={isDemo}
               formatCurrency={formatCurrency}
               showToast={showToast}
               onNavigate={(tab)=>handleTabChange(tab)}
@@ -490,6 +609,7 @@ export default function Dashboard({ setUser }) {
           {activeTab === 'entrada' && (
             <StockEntryPanel
               userId={userId}
+              demo={isDemo}
               products={products}
               onRefreshProducts={()=>fetchProducts(userId)}
               showToast={showToast}
@@ -522,13 +642,13 @@ export default function Dashboard({ setUser }) {
           )}
 
           {activeTab === 'historico' && (
-            <SalesHistory userId={userId} showToast={showToast} formatCurrency={(v)=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} />
+            <SalesHistory demo={isDemo} userId={userId} showToast={showToast} formatCurrency={(v)=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} />
           )}
 
           {activeTab === 'api' && <ApiPanel />}
 
           {activeTab === 'custos' && (
-            <ExpensesPanel userId={userId} formatCurrency={formatCurrency} showToast={showToast} />
+            <ExpensesPanel demo={isDemo} userId={userId} formatCurrency={formatCurrency} showToast={showToast} />
           )}
 
           {activeTab === 'configuracoes' && (
@@ -573,6 +693,8 @@ export default function Dashboard({ setUser }) {
           discount={discountValue}
           total={cartTotal}
           formatCurrency={formatCurrency}
+          printAfter={printAfterSale}
+          setPrintAfter={setPrintAfterSale}
           onClose={()=>setShowConfirmSale(false)}
           onConfirm={persistSale}
           busy={confirmBusy}

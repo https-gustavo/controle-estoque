@@ -7,9 +7,11 @@ import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import Dashboard from './components/Dashboard';
 import { supabase } from './supabaseClient';
+import { disableDemo, enableDemo, isDemoEnabled } from './demo/demoMode';
 
 function App() {
   const [user, setUser] = useState(null);
+  const [demoUser, setDemoUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
@@ -18,6 +20,7 @@ function App() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!cancelled) {
         setUser(session?.user ?? null);
+        if (isDemoEnabled()) setDemoUser({ id: 'demo', email: 'demo@local' });
         setAuthChecked(true);
       }
     };
@@ -30,6 +33,19 @@ function App() {
       listener?.subscription?.unsubscribe?.();
     };
   }, []);
+
+  const startDemo = () => {
+    enableDemo();
+    setDemoUser({ id: 'demo', email: 'demo@local' });
+  };
+  const stopDemo = async () => {
+    disableDemo();
+    setDemoUser(null);
+    try { await supabase.auth.signOut(); } catch {}
+    setUser(null);
+  };
+
+  const effectiveUser = user || demoUser;
 
   return (
     <Router basename={(import.meta.env.BASE_URL || '/').replace(/\/$/, '')}>
@@ -63,12 +79,12 @@ function App() {
         <Route
           path="/"
           element={
-            user ? (
+            effectiveUser ? (
               <Navigate to="/dashboard" />
             ) : (
               <div className="App">
                 {authChecked ? (
-                  <AuthWrapper showSignup={false} setUser={setUser} />
+                  <AuthWrapper showSignup={false} setUser={setUser} onStartDemo={startDemo} />
                 ) : (
                   <div style={{ padding: '2rem', textAlign: 'center' }}>Carregando...</div>
                 )}
@@ -80,12 +96,12 @@ function App() {
         <Route
           path="/signup"
           element={
-            user ? (
+            effectiveUser ? (
               <Navigate to="/dashboard" />
             ) : (
               <div className="App">
                 {authChecked ? (
-                  <AuthWrapper showSignup={true} setUser={setUser} />
+                  <AuthWrapper showSignup={true} setUser={setUser} onStartDemo={startDemo} />
                 ) : (
                   <div style={{ padding: '2rem', textAlign: 'center' }}>Carregando...</div>
                 )}
@@ -97,8 +113,8 @@ function App() {
         <Route
           path="/dashboard"
           element={
-            user ? (
-              <Dashboard setUser={setUser} />
+            effectiveUser ? (
+              <Dashboard setUser={setUser} demo={Boolean(demoUser)} onExitDemo={stopDemo} />
             ) : authChecked ? (
               <Navigate to="/" />
             ) : (
@@ -116,7 +132,7 @@ function App() {
  * Wrapper para alternar entre componentes de autenticação
  * Controla qual formulário de autenticação exibir (login, cadastro ou recuperação)
  */
-const AuthWrapper = ({ showSignup, showForgotPassword, setUser }) => {
+const AuthWrapper = ({ showSignup, showForgotPassword, setUser, onStartDemo }) => {
   const [currentView, setCurrentView] = useState(
     showForgotPassword ? 'forgot' : showSignup ? 'signup' : 'login'
   );
@@ -135,7 +151,8 @@ const AuthWrapper = ({ showSignup, showForgotPassword, setUser }) => {
         <Login 
           switchToSignup={switchToSignup} 
           switchToForgotPassword={switchToForgotPassword}
-          setUser={setUser} 
+          setUser={setUser}
+          onStartDemo={onStartDemo}
         />
       )}
       {currentView === 'forgot' && (

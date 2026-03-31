@@ -8,12 +8,12 @@ import TopProducts from './TopProducts';
 import RecentSales from './RecentSales';
 import QuickActions from './QuickActions';
 
-export default function DashboardPanel({ userId, formatCurrency, showToast, onNavigate, onAdjustQuantity, onEntry }) {
+export default function DashboardPanel({ userId, demo, formatCurrency, showToast, onNavigate, onAdjustQuantity, onEntry }) {
   const {
     rangeFrom, rangeTo, setRangeFrom, setRangeTo, setPreset,
     loading, summary, daily, financeDaily, top, lowStock, recent, expensesRows, trend,
     loadDashboard, exportCsv
-  } = useDashboardData(supabase, userId, showToast);
+  } = useDashboardData(supabase, userId, showToast, { demo });
 
   const handleEmptyChartCta = () => onNavigate?.('vendas');
   const viewProduct = (p) => onNavigate?.('produtos');
@@ -42,6 +42,59 @@ export default function DashboardPanel({ userId, formatCurrency, showToast, onNa
       document.removeEventListener('keydown', onKey);
     };
   }, []);
+
+  const printAudit = () => {
+    const fmt = (v)=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const h = (t)=>`<h2 style="margin:0 0 8px;font-weight:900;letter-spacing:-0.02em">${t}</h2>`;
+    const sub = (t)=>`<div style="color:#64748b;margin:0 0 12px;font-weight:700">${t}</div>`;
+    const kv = (k,v)=>`<div style="display:flex;justify-content:space-between;margin:6px 0"><span style="color:#475569;font-weight:800">${k}</span><span style="font-weight:900">${v}</span></div>`;
+    const table = (headers, rows)=>`<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px">${`<thead><tr>${headers.map(h=>`<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px 6px;background:#f8fafc">${h}</th>`).join('')}</tr></thead>`}<tbody>${rows.map(r=>`<tr>${r.map(c=>`<td style="border-bottom:1px solid #f1f5f9;padding:8px 6px">${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    const dailyRows = (daily||[]).map(r=>[String(r.day), fmt(r.total), r.items]);
+    const lowRows = (lowStock||[]).map(r=>[r.name, r.barcode||'—', r.quantity]);
+    const topRows = (top||[]).map(r=>[r.name, r.barcode||'—', r.qty, fmt(r.revenue)]);
+    const expRows = (expensesRows||[]).map(e=>[String(e.date||'').slice(0,10), e.category||'Geral', e.description||'—', fmt(e.amount||0)]);
+    const doc = `
+      <html>
+      <head>
+        <meta charset="utf-8"/>
+        <title>Auditoria ${rangeFrom} a ${rangeTo}</title>
+        <style>
+          @media print { @page { size: A4; margin: 12mm; } body { -webkit-print-color-adjust: exact; } }
+          body { font-family: Inter, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color:#0f172a; }
+          .header { display:flex;justify-content:space-between;align-items:center;margin-bottom:10px }
+          .brand { font-weight:900;letter-spacing:-0.02em }
+          .grid { display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0 18px }
+          .card { border:1px solid #e2e8f0;border-radius:10px;padding:10px }
+        </style>
+      </head>
+      <body>
+        <div class="header"><div class="brand">Tech Estoque</div><div>${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div>
+        ${h('Auditoria do sistema')}
+        ${sub(`Período: ${rangeFrom.split('-').reverse().join('/')} a ${rangeTo.split('-').reverse().join('/')}`)}
+        <div class="grid">
+          <div>${kv('Receita', fmt(summary.revenue))}${kv('Itens vendidos', summary.items)}${kv('Ticket médio', fmt(summary.avgTicket))}</div>
+          <div>${kv('Despesas', fmt(summary.expenses))}${kv('Lucro líquido', fmt(summary.netProfit))}${kv('Estoque (custo)', fmt(summary.stockInvested))}</div>
+        </div>
+        <div class="card">
+          ${h('Vendas por dia')}${table(['Dia','Receita','Itens'], dailyRows)}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+          <div class="card">${h('Top produtos')}${table(['Produto','Código','Qtd','Receita'], topRows)}</div>
+          <div class="card">${h('Baixo estoque')}${table(['Produto','Código','Qtd'], lowRows)}</div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          ${h('Despesas')}${table(['Data','Categoria','Descrição','Valor'], expRows)}
+        </div>
+      </body>
+      </html>
+    `;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(doc);
+    w.document.close();
+    w.focus();
+    setTimeout(()=>w.print(), 300);
+  };
 
   return (
     <>
@@ -83,6 +136,7 @@ export default function DashboardPanel({ userId, formatCurrency, showToast, onNa
               )}
             </div>
             <button className="btn-outline" onClick={loadDashboard} disabled={loading}>{loading?'Atualizando...':'Atualizar'}</button>
+            <button className="btn-outline" onClick={printAudit}>Imprimir auditoria</button>
           </div>
         </div>
 

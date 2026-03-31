@@ -1906,6 +1906,8 @@ body {
   display: grid;
   gap: 2rem;
   max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .settings-card {
@@ -2351,9 +2353,7 @@ body {
 }
 
 .modal-header h2::before {
-  content: "📦";
-  font-size: 1.125rem;
-  opacity: 0.8;
+  content: "";
 }
 
 .close-btn {

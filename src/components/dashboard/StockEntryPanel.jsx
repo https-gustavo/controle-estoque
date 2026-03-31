@@ -3,12 +3,26 @@ import { supabase } from '../../supabaseClient';
 import StockEntryForm from './StockEntryForm';
 import ProductCreateModal from './ProductCreateModal';
 
-export default function StockEntryPanel({ userId, products, onRefreshProducts, showToast }) {
+export default function StockEntryPanel({ userId, demo, products, onRefreshProducts, showToast }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [createInitial, setCreateInitial] = useState(null);
+  const categories = React.useMemo(() => {
+    const set = new Set();
+    (Array.isArray(products) ? products : []).forEach(p => {
+      const c = String(p?.category || '').trim();
+      if (c) set.add(c);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [products]);
   const handleCreate = (payload) => {
     const evt = new CustomEvent('products:add', { detail: payload });
     window.dispatchEvent(evt);
+    onRefreshProducts?.();
+  };
+  const handleCreateBatch = (list) => {
+    const arr = Array.isArray(list) ? list : [];
+    if (!arr.length) return;
+    window.dispatchEvent(new CustomEvent('products:addMany', { detail: { items: arr } }));
     setCreateOpen(false);
     setCreateInitial(null);
     onRefreshProducts?.();
@@ -40,6 +54,7 @@ export default function StockEntryPanel({ userId, products, onRefreshProducts, s
           <StockEntryForm
             supabase={supabase}
             userId={userId}
+            demo={demo || userId === 'demo'}
             products={products}
             onAfterChange={onRefreshProducts}
             showToast={showToast}
@@ -48,10 +63,12 @@ export default function StockEntryPanel({ userId, products, onRefreshProducts, s
       </div>
       <ProductCreateModal
         open={createOpen}
-        onClose={()=>setCreateOpen(false)}
+        onClose={()=>{ setCreateOpen(false); setCreateInitial(null); }}
         busy={false}
         initial={createInitial}
+        categories={categories}
         onCreate={handleCreate}
+        onCreateBatch={handleCreateBatch}
       />
     </div>
   );

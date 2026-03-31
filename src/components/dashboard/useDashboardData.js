@@ -1,12 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { demoApi } from '../../demo/demoApi';
+import { toDayKeyBR } from '../../utils/dateBR';
 
-export function useDashboardData(supabase, userId, showToast) {
+export function useDashboardData(supabase, userId, showToast, options = {}) {
   const normDay = (v) => {
     if (!v) return '';
     if (typeof v === 'string') return v.slice(0, 10);
     const d = new Date(v);
-    if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+    if (!Number.isNaN(d.getTime())) return toDayKeyBR(d);
     return String(v).slice(0, 10);
+  };
+
+  const dateIter = (from, to) => {
+    const start = new Date(`${String(from).slice(0, 10)}T12:00:00`);
+    const end = new Date(`${String(to).slice(0, 10)}T12:00:00`);
+    const out = [];
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return out;
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      out.push(toDayKeyBR(d));
+    }
+    return out;
   };
 
   const [rangeFrom, setRangeFrom] = useState(() => {
@@ -66,6 +79,115 @@ export function useDashboardData(supabase, userId, showToast) {
 
   const loadDashboard = useCallback(async () => {
     if (!userId) return;
+    if (options?.demo || userId === 'demo') {
+      setLoading(true); setError('');
+      try {
+        const products = demoApi.listProducts();
+        const salesAll = demoApi.listSales();
+        const expensesAll = demoApi.listExpenses({ from: rangeFrom, to: rangeTo });
+        const fromTs = new Date(rangeFrom).getTime();
+        const toTs = new Date(`${rangeTo}T23:59:59.999Z`).getTime();
+        const sales = salesAll.filter(s => {
+          const d = new Date(s.sale_date || s.date || s.created_at);
+          const t = d.getTime();
+          return !Number.isNaN(t) && t >= fromTs && t <= toTs;
+        });
+
+        const revenue = sales.reduce((a, s) => a + Number(s.total_price ?? s.total ?? 0), 0);
+        const orders = sales.length ? new Set(sales.map(s => String(s.sale_date || s.created_at || s.date || ''))).size : 0;
+        const items = sales.reduce((a, s) => a + Number(s.quantity || s.items || 1), 0);
+        const avgTicket = orders ? revenue / orders : 0;
+
+        const byDay = {};
+        sales.forEach(s => {
+          const k = normDay(s.sale_date || s.date || s.created_at);
+          if (!k) return;
+          byDay[k] = (byDay[k] || { total: 0, items: 0 });
+          byDay[k].total += Number(s.total_price ?? s.total ?? 0);
+          byDay[k].items += Number(s.quantity || s.items || 1);
+        });
+        const days = dateIter(rangeFrom, rangeTo);
+        const dailyRows = days.map(k => ({ day: k, total: byDay[k]?.total || 0, items: byDay[k]?.items || 0 }));
+
+        const expByDay = {};
+        expensesAll.forEach(e => {
+          const k = String(e.date || '').slice(0, 10);
+          expByDay[k] = (expByDay[k] || 0) + Number(e.amount || 0);
+        });
+        const cogsByDay = {};
+        sales.forEach(s => {
+          const k = normDay(s.sale_date || s.date || s.created_at);
+          const cost = Number(s.cost_total || 0);
+          cogsByDay[k] = (cogsByDay[k] || 0) + cost;
+        });
+
+        const financeRows = dailyRows.map(r => {
+          const rev = Number(r.total || 0);
+          const ex = Number(expByDay[r.day] || 0);
+          const cg = Number(cogsByDay[r.day] || 0);
+          return { day: r.day, revenue: rev, expenses: ex, profit: rev - cg - ex };
+        });
+
+        const cogs = sales.reduce((a, s) => a + Number(s.cost_total || 0), 0);
+        const expenses = expensesAll.reduce((a, e) => a + Number(e.amount || 0), 0);
+        const stockInvested = products.reduce((a, p) => a + Number(p.cost_price || 0) * Number(p.quantity || 0), 0);
+        const stockPotential = products.reduce((a, p) => a + Number(p.sale_price || 0) * Number(p.quantity || 0), 0);
+        const grossProfit = revenue - cogs;
+        const grossMarginPct = revenue > 0 ? (grossProfit / revenue) * 100 : null;
+        const netProfit = revenue - cogs - expenses;
+
+        const topMap = new Map();
+        sales.forEach(s => {
+          const pid = s.product_id || null;
+          const k = String(pid || s.barcode || s.product_name || '');
+          const prev = topMap.get(k) || { id: pid || k, name: s.product_name || 'Produto', barcode: s.barcode || '', qty: 0, revenue: 0, margin: null };
+          prev.qty += Number(s.quantity || 1);
+          prev.revenue += Number(s.total_price ?? s.total ?? 0);
+          topMap.set(k, prev);
+        });
+        const topRows = Array.from(topMap.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+        const lowRows = products.filter(p => Number(p.quantity || 0) < 10).map(p => ({ id: p.id, name: p.name, barcode: p.barcode, quantity: p.quantity }));
+        const recentRows = salesAll.slice(0, 10).map(r => ({
+          id: r.id,
+          date: r.sale_date || r.created_at || r.date,
+          product: r.product_name || 'Produto',
+          qty: Number(r.quantity || 1),
+          total: Number(r.total_price ?? r.total ?? 0),
+        }));
+
+        const sum = {
+          revenue,
+          orders,
+          items,
+          avgTicket,
+          products: products.length,
+          lowStock: lowRows.length,
+          stockValue: stockInvested,
+          expenses,
+          cogs,
+          netProfit,
+          stockInvested,
+          stockPotential,
+          grossMarginPct
+        };
+
+        setSummary(sum);
+        setDaily(dailyRows);
+        setFinanceDaily(financeRows);
+        setTop(topRows);
+        setLowStock(lowRows);
+        setRecent(recentRows);
+        setExpensesRows(expensesAll);
+        setTrend({ revenue: null, orders: null, items: null, avgTicket: null });
+        cacheRef.current.set(key, { summary: sum, daily: dailyRows, financeDaily: financeRows, top: topRows, lowStock: lowRows, recent: recentRows, expensesRows: expensesAll, trend: { revenue: null, orders: null, items: null, avgTicket: null } });
+      } catch (e) {
+        setError(e?.message || 'Falha ao carregar dados');
+        showToast?.('Erro ao carregar dashboard', 'danger');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     const cached = cacheRef.current.get(key);
     if (cached) {
       setSummary(cached.summary);
@@ -196,20 +318,17 @@ export function useDashboardData(supabase, userId, showToast) {
       });
       const cogsByDay = {};
       srows.forEach(s => {
-        const k = new Date(s.sale_date || s.date || s.created_at).toISOString().slice(0, 10);
+        const k = normDay(s.sale_date || s.date || s.created_at);
         const qty = Number(s.quantity || s.items || 1);
         const cost = (s.cost_total != null) ? Number(s.cost_total || 0) : (Number(byId.get(String(s.product_id))?.cost_price || 0) * qty);
         cogsByDay[k] = (cogsByDay[k] || 0) + cost;
       });
-      const financeRows = [];
-      const start = new Date(rangeFrom); const end = new Date(rangeTo);
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const k = d.toISOString().slice(0, 10);
+      const financeRows = dateIter(rangeFrom, rangeTo).map(k => {
         const rev = Number(revByDay[k] || 0);
         const ex = Number(expByDay[k] || 0);
         const cg = Number(cogsByDay[k] || 0);
-        financeRows.push({ day: k, revenue: rev, expenses: ex, profit: rev - cg - ex });
-      }
+        return { day: k, revenue: rev, expenses: ex, profit: rev - cg - ex };
+      });
 
       // Previous period trend
       const fromDt = new Date(rangeFrom);
@@ -386,7 +505,7 @@ export function useDashboardData(supabase, userId, showToast) {
     } finally {
       setLoading(false);
     }
-  }, [userId, supabase, rangeFrom, rangeTo, key, showToast]);
+  }, [userId, supabase, rangeFrom, rangeTo, key, showToast, options?.demo]);
 
   useEffect(()=>{ loadDashboard(); }, [loadDashboard]);
 
