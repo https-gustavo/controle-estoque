@@ -1,19 +1,24 @@
 :root {
-  --primary-color: #6b7280;
-  --primary-hover: #4b5563;
-  --secondary-color: #6b7280;
+  --primary-color: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-gradient: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+  --primary-gradient-hover: linear-gradient(135deg, #6d28d9 0%, #1d4ed8 100%);
+  --secondary-color: #64748b;
   --success-color: #10b981;
   --warning-color: #f59e0b;
   --danger-color: #ef4444;
-  --background-color: #f9fafb;
+  --background-color: #f8f9fc;
   --surface-color: #ffffff;
-  --text-primary: #111827;
+  --text-primary: #1f2937;
   --text-secondary: #6b7280;
   --border-color: #e5e7eb;
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --radius: 12px;
+  --radius: 10px;
+  --focus-ring: 0 0 0 4px rgba(99, 102, 241, 0.18);
+  --hover-bg: rgba(99, 102, 241, 0.08);
+  --sidebar-width: 240px;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -38,17 +43,82 @@ body {
   color: var(--text-primary);
 }
 
-/* Unificar botões em tons de cinza (sem gradientes roxos) */
+.card {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-input {
+  width: 100%;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  padding: 0 12px;
+  color: var(--text-primary);
+  outline: none;
+  transition: box-shadow .15s ease, border-color .15s ease, background-color .15s ease;
+}
+.form-input:focus {
+  border-color: rgba(99, 102, 241, 0.55);
+  box-shadow: var(--focus-ring);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .btn-primary,
-.big-primary,
-.quick-add .btn-primary {
-  background: var(--primary-color) !important;
-  background-image: none !important;
-  border-color: transparent !important;
-  color: #fff !important;
+.btn-outline,
+.btn-success {
+  height: 42px;
+  border-radius: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
 }
-.btn-primary:hover,
-.big-primary:hover,
-.quick-add .btn-primary:hover {
-  background: var(--primary-hover) !important;
+.btn-primary {
+  background: var(--primary-gradient);
+  color: #fff;
+  border: 1px solid transparent;
 }
+.btn-primary:hover { background: var(--primary-gradient-hover); }
+.btn-primary:disabled { opacity: 0.65; cursor: not-allowed; }
+
+.btn-outline {
+  background: #fff;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+.btn-outline:hover { background: rgba(15, 23, 42, 0.03); }
+
+.btn-success {
+  background: #10b981;
+  color: #fff;
+  border: 1px solid transparent;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.badge.info { background: #e0e7ff; color: #3730a3; border-color: #c7d2fe; }
+.badge.green { background: #d1fae5; color: #065f46; border-color: #10b981; }
+.badge.gray { background: #e5e7eb; color: #374151; border-color: #d1d5db; }
+.badge.red { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+.badge.amber { background: #fef3c7; color: #92400e; border-color: #fbbf24; }

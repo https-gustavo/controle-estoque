@@ -6,10 +6,13 @@ import DashboardSidebar from './dashboard/DashboardSidebar';
 import DashboardHeader from './dashboard/DashboardHeader';
 import ApiPanel from './dashboard/ApiPanel';
 import ProductsPanel from './dashboard/ProductsPanel';
-import { EntryModal, QuantityModal, PriceModal } from './dashboard/Modals';
+import { QuantityModal, PriceModal, ConfirmSaleModal } from './dashboard/Modals';
+import StockEntryPanel from './dashboard/StockEntryPanel';
 import SalesPanel from './dashboard/SalesPanel';
-import CostsPanel from './dashboard/CostsPanel';
+import ExpensesPanel from './dashboard/ExpensesPanel';
 import SettingsPanel from './dashboard/SettingsPanel';
+import DashboardPanel from './dashboard/DashboardPanel';
+import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import '../styles/Dashboard.css';
 
 export default function Dashboard({ setUser }) {
@@ -17,24 +20,18 @@ export default function Dashboard({ setUser }) {
   const [userId, setUserId] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
     try { return localStorage.getItem('activeTab') || 'dashboard'; } catch { return 'dashboard'; }
-  }); // dashboard | produtos | vendas | historico | api | custos
+  }); // dashboard | produtos | entrada | vendas | historico | api | custos
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [companySettings] = useState({ name: 'Estoque Pro', logo: '' });
+  const [companySettings, setCompanySettings] = useState({ name: 'Estoque Pro', logo: '' });
 
   // Produtos
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ minPrice: '', maxPrice: '', minStock: '', maxStock: '', stockStatus: '' });
   const [form, setForm] = useState({ name: '', barcode: '', quantity: '', cost_price: '', sale_price: '' });
-
-  // Modal de Entrada (simples/avançado)
-  const [showEntryModal, setShowEntryModal] = useState(false);
-  const [simpleMode, setSimpleMode] = useState(true);
-  const [quickEntry, setQuickEntry] = useState({ barcode: '', name: '', quantity: '', cost_price: '', sale_price: '' });
-  const [batchProducts, setBatchProducts] = useState([]);
 
   // Modais auxiliares
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -86,61 +83,132 @@ export default function Dashboard({ setUser }) {
   const cartSubtotal = salesCart.reduce((a,b)=>a + Number(b.unit_price||0)*Number(b.quantity||0), 0);
   const discountValue = Math.min(Number(saleDiscount||0), cartSubtotal);
   const cartTotal = Math.max(0, cartSubtotal - discountValue);
-  const handleFinalizeSale = async () => {
-    // Mantém comportamento simples de demonstração; persistência pode ser ligada a sua API existente
+  const [showConfirmSale, setShowConfirmSale] = useState(false);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const handleFinalizeSale = () => {
     if (salesCart.length === 0) return;
-    showToast('Venda registrada (simulação). Integração com persistência pode ser reativada.', 'success');
-    setSalesCart([]); setSaleDiscount('');
+    setShowConfirmSale(true);
+  };
+  const persistSale = async () => {
+    if (!userId || salesCart.length === 0) { setShowConfirmSale(false); return; }
+    for (const item of salesCart) {
+      const p = products.find(pr => String(pr.id) === String(item.id) || (item.barcode && pr.barcode === item.barcode));
+      const cost = Number(p?.cost_price || 0);
+      if (!(cost > 0)) {
+        showToast('Produto sem custo. Atualize o custo antes de registrar a venda.', 'danger');
+        setShowConfirmSale(false);
+        return;
+      }
+    }
+    setConfirmBusy(true);
+    try {
+      const now = new Date().toISOString();
+      // monta linhas: 1 linha por item (duas variações de schema)
+      const rowsMinimal = salesCart.map(item => {
+        const p = products.find(pr => String(pr.id) === String(item.id) || (item.barcode && pr.barcode === item.barcode));
+        return {
+          user_id: userId,
+          product_id: p?.id ?? null,
+          date: now,
+          total: Number(item.unit_price || 0) * Number(item.quantity || 1)
+        };
+      });
+      const rowsDetailed = salesCart.map(item => {
+        // tenta resolver id do produto pelo estado atual
+        const p = products.find(pr => String(pr.id) === String(item.id) || (item.barcode && pr.barcode === item.barcode));
+        const qty = Number(item.quantity || 1);
+        const unit = Number(item.unit_price || 0);
+        const revenue = unit * qty;
+        const costUnit = Number(p?.cost_price || 0);
+        const costTotal = costUnit * qty;
+        return {
+          user_id: userId,
+          product_id: p?.id ?? null,
+          product_name: item.name,
+          barcode: item.barcode || p?.barcode || null,
+          quantity: qty,
+          unit_price: unit,
+          total_price: revenue,
+          cost_total: costTotal,
+          profit: revenue - costTotal,
+          sale_date: now
+        };
+      });
+      // Agora que as colunas modernas existem, tenta primeiro (sale_date/total_price/...),
+      // e se falhar, cai no legado (date/total).
+      let insErr = null;
+      let ins1 = await supabase.from('sales').insert(rowsDetailed);
+      if (ins1.error && (String(ins1.error.message || '').toLowerCase().includes('cost_total') || String(ins1.error.message || '').toLowerCase().includes('profit'))) {
+        const stripped = rowsDetailed.map(({ cost_total, profit, ...rest }) => rest);
+        ins1 = await supabase.from('sales').insert(stripped);
+      }
+      if (ins1.error) {
+        insErr = ins1.error;
+        const ins2 = await supabase.from('sales').insert(rowsMinimal);
+        if (ins2.error) throw ins2.error;
+        insErr = null;
+      }
+      if (insErr) throw insErr;
+      const saveOutMovement = async ({ product_id, quantity, cost_unit }) => {
+        try {
+          const modern = { user_id: userId, product_id, type: 'saida', quantity, cost_unit, occurred_at: now };
+          const legacy = { user_id: userId, product_id, type: 'saida', quantity };
+          let { error } = await supabase.from('stock_movements').insert([modern]);
+          if (error) ({ error } = await supabase.from('stock_movements').insert([legacy]));
+          if (error) return;
+        } catch {}
+      };
+      // atualiza estoque
+      for (const item of salesCart) {
+        const p = products.find(pr => String(pr.id) === String(item.id) || (item.barcode && pr.barcode === item.barcode));
+        if (!p?.id) continue;
+        const newQty = Math.max(0, Number(p.quantity||0) - Number(item.quantity||0));
+        const { error: upErr } = await supabase.from('products').update({ quantity: newQty }).eq('id', p.id).eq('user_id', userId);
+        if (upErr) throw upErr;
+        await saveOutMovement({ product_id: p.id, quantity: Number(item.quantity||0), cost_unit: Number(p.cost_price||0) });
+      }
+      // refresh local
+      await fetchProducts(userId);
+      setSalesCart([]); setSaleDiscount('');
+      showToast('Venda registrada com sucesso', 'success');
+      try { window.dispatchEvent(new Event('dashboard:refresh')); } catch {}
+    } catch (e) {
+      showToast(e?.message || 'Falha ao registrar venda', 'danger');
+    } finally {
+      setConfirmBusy(false);
+      setShowConfirmSale(false);
+    }
   };
 
-  // Custos
-  const [costBase, setCostBase] = useState('');
-  const [freight, setFreight] = useState('');
-  const [packaging, setPackaging] = useState('');
-  const [otherCosts, setOtherCosts] = useState('');
-  const [otherCostsPercent, setOtherCostsPercent] = useState('');
-  const [icms, setIcms] = useState('');
-  const [ipi, setIpi] = useState('');
-  const [pis, setPis] = useState('');
-  const [cofins, setCofins] = useState('');
-  const [iss, setIss] = useState('');
-  const [calcMode, setCalcMode] = useState('margin');
-  const [targetMargin, setTargetMargin] = useState('');
-  const [salePriceInput, setSalePriceInput] = useState('');
-  const [calcSimpleMode, setCalcSimpleMode] = useState(true);
-  const [taxTotal, setTaxTotal] = useState('');
-  const [calcProductId, setCalcProductId] = useState('');
-  const [calcSearch, setCalcSearch] = useState('');
-  const [calcSuggestOpen, setCalcSuggestOpen] = useState(false);
-  const toNum = (v) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isNaN(n) ? 0 : n; };
-  const baseCosts = toNum(costBase) + toNum(freight) + toNum(packaging) + toNum(otherCosts);
-  const otherCostsPercentValue = baseCosts * (toNum(otherCostsPercent) / 100);
-  const totalBaseCosts = baseCosts + otherCostsPercentValue;
-  const taxRate = calcSimpleMode ? (toNum(taxTotal) / 100)
-    : (toNum(icms) + toNum(ipi) + toNum(pis) + toNum(cofins) + toNum(iss)) / 100;
-  const costWithTaxes = totalBaseCosts * (1 + taxRate);
-  const computedByMargin = targetMargin ? (costWithTaxes / (1 - toNum(targetMargin) / 100)) : costWithTaxes;
-  const effectiveSalePrice = calcMode === 'margin' ? computedByMargin : toNum(salePriceInput);
-  const effectiveMargin = effectiveSalePrice > 0 ? ((effectiveSalePrice - costWithTaxes) / effectiveSalePrice) * 100 : 0;
-  const selectedCalcProduct = products.find(p => String(p.id) === String(calcProductId));
-  const calcMatches = calcSearch.trim()
-    ? products.filter(p => String(p.name||'').toLowerCase().includes(calcSearch.trim().toLowerCase())
-        || String(p.barcode||'').includes(calcSearch.trim()))
-    : [];
-  const handleApplyCalculatedPrices = async () => {
-    if (!selectedCalcProduct) { showToast('Selecione um produto', 'danger'); return; }
-    try {
-      const patch = { cost_price: Number(costWithTaxes||0), sale_price: Number(effectiveSalePrice||0) };
-      const { error } = await supabase.from('products').update(patch).eq('id', selectedCalcProduct.id).eq('user_id', userId);
-      if (error) throw error;
-      setProducts(prev => prev.map(p => p.id === selectedCalcProduct.id ? { ...p, ...patch } : p));
-      showToast('Preços aplicados');
-    } catch { showToast('Erro ao aplicar preços', 'danger'); }
-  };
   const showToast = (message, type = 'success', ms = 2500) => {
     setToast({ message, type });
     setTimeout(() => setToast(null), ms);
   };
+
+  useBarcodeScanner((code, e) => {
+    const barcode = String(code || '').trim();
+    if (!barcode) return;
+    const found = products.find(p => String(p.barcode || '') === barcode);
+
+    if (activeTab === 'vendas') {
+      if (found) {
+        addProductToCart(found, 1);
+        showToast('Produto identificado', 'success');
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+      } else {
+        showToast('Produto não encontrado', 'danger');
+      }
+      return;
+    }
+
+    if (activeTab === 'entrada') {
+      window.dispatchEvent(new CustomEvent('scanner:code', { detail: { code: barcode, tab: 'entrada' } }));
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      return;
+    }
+  });
 
   const filteredProducts = useMemo(() => {
     let arr = products;
@@ -150,9 +218,9 @@ export default function Dashboard({ setUser }) {
     if (filters.maxPrice) arr = arr.filter(p => Number(p.sale_price || 0) <= Number(filters.maxPrice));
     if (filters.minStock) arr = arr.filter(p => Number(p.quantity || 0) >= Number(filters.minStock));
     if (filters.maxStock) arr = arr.filter(p => Number(p.quantity || 0) <= Number(filters.maxStock));
-    if (filters.stockStatus === 'low') arr = arr.filter(p => Number(p.quantity || 0) < 10);
-    if (filters.stockStatus === 'normal') arr = arr.filter(p => Number(p.quantity || 0) >= 10 && Number(p.quantity || 0) < 50);
-    if (filters.stockStatus === 'high') arr = arr.filter(p => Number(p.quantity || 0) >= 50);
+    if (filters.stockStatus === 'low') arr = arr.filter(p => Number(p.quantity || 0) > 0 && Number(p.quantity || 0) < 10);
+    if (filters.stockStatus === 'normal') arr = arr.filter(p => Number(p.quantity || 0) >= 10);
+    if (filters.stockStatus === 'none') arr = arr.filter(p => Number(p.quantity || 0) <= 0);
     return arr;
   }, [products, search, filters]);
 
@@ -163,10 +231,6 @@ export default function Dashboard({ setUser }) {
       if (cancelled) return;
       const uid = session?.user?.id || null;
       setUserId(uid);
-      if (!uid) {
-        navigate('/', { replace: true });
-        return;
-      }
       fetchProducts(uid);
     })();
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
@@ -247,6 +311,77 @@ export default function Dashboard({ setUser }) {
     }
   };
 
+  const handleUpdateProduct = async (id, patch) => {
+    if (!userId || !id) return;
+    setLoading(true);
+    setError('');
+    try {
+      const clean = {
+        name: String(patch.name || '').trim(),
+        barcode: String(patch.barcode || '').trim(),
+        category: String(patch.category || '').trim(),
+        cost_price: Number(patch.cost_price || 0),
+        sale_price: Number(patch.sale_price || 0)
+      };
+      const tryUpdate = async (payload) => supabase.from('products').update(payload).eq('id', id).eq('user_id', userId);
+      let { error } = await tryUpdate(clean);
+      if (error && String(error.message || '').toLowerCase().includes('category')) {
+        const { category, ...rest } = clean;
+        ({ error } = await tryUpdate(rest));
+      }
+      if (error) throw error;
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, ...clean } : p));
+      showToast('Produto atualizado', 'success');
+    } catch (e) {
+      setError(e?.message || 'Falha ao atualizar produto');
+      showToast('Erro ao atualizar produto', 'danger');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const onAdd = async (evt) => {
+      if (!userId) return;
+      const payload = evt.detail || {};
+      const name = String(payload.name||'').trim();
+      const barcode = String(payload.barcode||'').trim();
+      const cost_price = Number(payload.cost_price||0);
+      const sale_price = Number(payload.sale_price||0);
+      const category = String(payload.category||'').trim();
+      const margin = Number(payload.margin||0);
+      if (!name) { showToast('Informe nome do produto', 'danger'); return; }
+      setLoading(true);
+      setError('');
+      try {
+        const existing = products.find(p => (barcode && String(p.barcode||'')===barcode) || String(p.name||'').toLowerCase()===name.toLowerCase());
+        if (existing) {
+          showToast('Produto já existe. Use a tela Entrada para ajustar estoque.', 'danger');
+          handleTabChange('entrada');
+          return;
+        }
+        const row = { user_id: userId, name, barcode, quantity: 0, cost_price, sale_price };
+        if (category) row.category = category;
+        if (margin) row.margin = margin;
+        const tryInsert = async (payload) => supabase.from('products').insert([payload]);
+        let { error } = await tryInsert(row);
+        if (error && (String(error.message || '').toLowerCase().includes('category') || String(error.message || '').toLowerCase().includes('margin'))) {
+          const { category, margin, ...rest } = row;
+          ({ error } = await tryInsert(rest));
+        }
+        if (error) throw error;
+        fetchProducts();
+        showToast('Produto criado', 'success');
+      } catch (e) {
+        setError(e?.message || 'Falha ao salvar produto');
+      } finally {
+        setLoading(false);
+      }
+    };
+    window.addEventListener('products:add', onAdd);
+    return () => window.removeEventListener('products:add', onAdd);
+  }, [userId, products]);
+
   const handleLogout = async () => {
     try { await supabase.auth.signOut(); } finally { setUser?.(null); navigate('/', { replace: true }); }
   };
@@ -271,45 +406,7 @@ export default function Dashboard({ setUser }) {
   };
   const saveCompanySettings = () => showToast('Configurações salvas');
 
-  // Entrada (modo simples e avançado) — remoção padronizada por id
-  const genId = () => (globalThis.crypto?.randomUUID?.() || `id_${Date.now()}_${Math.random().toString(16).slice(2)}`);
-  const handleQuickEntryChange = (field, value) => setQuickEntry(prev => ({ ...prev, [field]: value }));
-  const handleQuickAddToBatch = () => {
-    const barcode = String(quickEntry.barcode || '').trim();
-    const name = String(quickEntry.name || '').trim();
-    const quantity = parseInt(quickEntry.quantity || '0', 10) || 0;
-    const cost_price = quickEntry.cost_price ? Number(String(quickEntry.cost_price).replace(',', '.')) : 0;
-    const sale_price = quickEntry.sale_price ? Number(String(quickEntry.sale_price).replace(',', '.')) : 0;
-    if (!barcode || !name || quantity <= 0) { showToast('Preencha código, nome e quantidade', 'danger'); return; }
-    setBatchProducts(prev => [...prev, { id: genId(), barcode, name, quantity, cost_price, sale_price }]);
-    setQuickEntry({ barcode: '', name: '', quantity: '', cost_price: '', sale_price: '' });
-  };
-  const handleRemoveBatchRow = (rowId) => setBatchProducts(prev => prev.filter(r => r.id !== rowId));
-  const handleBatchSubmit = async () => {
-    if (!userId || batchProducts.length === 0) return;
-    setLoading(true);
-    setError('');
-    try {
-      const rows = batchProducts.map(r => ({
-        user_id: userId,
-        barcode: r.barcode,
-        name: r.name,
-        quantity: Number(r.quantity || 0),
-        cost_price: Number(r.cost_price || 0),
-        sale_price: Number(r.sale_price || 0)
-      }));
-      const { error } = await supabase.from('products').insert(rows);
-      if (error) throw error;
-      setBatchProducts([]);
-      setShowEntryModal(false);
-      fetchProducts();
-      showToast('Entrada processada');
-    } catch (e) {
-      setError(e?.message || 'Falha ao processar entrada');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const goStockEntry = () => handleTabChange('entrada');
 
   const handleUpdateQuantity = async () => {
     if (!selectedProduct || !userId) return;
@@ -361,39 +458,18 @@ export default function Dashboard({ setUser }) {
           onMobileClick={handleMobileNavClick}
         />
 
-        {/* Main */}
         <div className={`main-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
           <DashboardHeader sidebarOpen={sidebarOpen} onToggle={toggleSidebar} />
 
           {activeTab === 'dashboard' && (
-            <div className="card">
-              <div className="sales-summary">
-                <h2>Resumo</h2>
-                <div className="sales-stats">
-                  <div className="stat-card" onClick={() => handleTabChange('historico')} style={{ cursor: 'pointer' }}>
-                    <div className="stat-icon"><i className="fas fa-money-bill-wave"></i></div>
-                    <div className="stat-content">
-                      <div className="stat-label">Total de Vendas</div>
-                      <div className="stat-value">{formatCurrency(0)}</div>
-                    </div>
-                  </div>
-                  <div className="stat-card" onClick={() => handleTabChange('produtos')} style={{ cursor: 'pointer' }}>
-                    <div className="stat-icon"><i className="fas fa-boxes"></i></div>
-                    <div className="stat-content">
-                      <div className="stat-label">Total de Produtos</div>
-                      <div className="stat-value">{products.length}</div>
-                    </div>
-                  </div>
-                  <div className="stat-card" onClick={() => handleTabChange('produtos')} style={{ cursor: 'pointer' }}>
-                    <div className="stat-icon"><i className="fas fa-exclamation-triangle"></i></div>
-                    <div className="stat-content">
-                      <div className="stat-label">Estoque Baixo</div>
-                      <div className="stat-value">{products.filter(p => Number(p.quantity||0) < 10).length}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <DashboardPanel
+              userId={userId}
+              formatCurrency={formatCurrency}
+              showToast={showToast}
+              onNavigate={(tab)=>handleTabChange(tab)}
+              onAdjustQuantity={(product)=>{ setSelectedProduct(product); setShowQuantityModal(true); setCustomValue(String(product?.quantity || '')); }}
+              onEntry={goStockEntry}
+            />
           )}
 
           {activeTab === 'produtos' && (
@@ -402,13 +478,21 @@ export default function Dashboard({ setUser }) {
               setSearch={setSearch}
               filters={filters}
               setFilters={setFilters}
-              form={form}
-              handleChange={handleChange}
-              handleCreate={handleCreate}
+              products={products}
               loading={loading}
               filteredProducts={filteredProducts}
               handleDelete={handleDelete}
-              onOpenEntryModal={()=>setShowEntryModal(true)}
+              onGoEntry={goStockEntry}
+              onUpdate={handleUpdateProduct}
+            />
+          )}
+
+          {activeTab === 'entrada' && (
+            <StockEntryPanel
+              userId={userId}
+              products={products}
+              onRefreshProducts={()=>fetchProducts(userId)}
+              showToast={showToast}
             />
           )}
 
@@ -444,37 +528,7 @@ export default function Dashboard({ setUser }) {
           {activeTab === 'api' && <ApiPanel />}
 
           {activeTab === 'custos' && (
-            <CostsPanel
-              calcSearch={calcSearch}
-              setCalcSearch={setCalcSearch}
-              calcSuggestOpen={calcSuggestOpen}
-              setCalcSuggestOpen={setCalcSuggestOpen}
-              calcMatches={calcMatches}
-              setCalcProductId={setCalcProductId}
-              setCostBase={setCostBase}
-              selectedCalcProduct={selectedCalcProduct}
-              formatCurrency={formatCurrency}
-              baseCosts={baseCosts}
-              freight={freight} setFreight={setFreight}
-              packaging={packaging} setPackaging={setPackaging}
-              otherCosts={otherCosts} setOtherCosts={setOtherCosts}
-              otherCostsPercent={otherCostsPercent} setOtherCostsPercent={setOtherCostsPercent}
-              calcSimpleMode={calcSimpleMode} setCalcSimpleMode={setCalcSimpleMode}
-              taxTotal={taxTotal} setTaxTotal={setTaxTotal}
-              icms={icms} setIcms={setIcms}
-              ipi={ipi} setIpi={setIpi}
-              pis={pis} setPis={setPis}
-              cofins={cofins} setCofins={setCofins}
-              iss={iss} setIss={setIss}
-              costBase={costBase}
-              calcMode={calcMode} setCalcMode={setCalcMode}
-              targetMargin={targetMargin} setTargetMargin={setTargetMargin}
-              salePriceInput={salePriceInput} setSalePriceInput={setSalePriceInput}
-              costWithTaxes={costWithTaxes}
-              effectiveSalePrice={effectiveSalePrice}
-              effectiveMargin={effectiveMargin}
-              handleApplyCalculatedPrices={handleApplyCalculatedPrices}
-            />
+            <ExpensesPanel userId={userId} formatCurrency={formatCurrency} showToast={showToast} />
           )}
 
           {activeTab === 'configuracoes' && (
@@ -488,21 +542,8 @@ export default function Dashboard({ setUser }) {
         </div>
 
         {toast && (
-          <div className={`toast ${toast.type}`}>{toast.message}</div>
+          <div className={`toast ${toast.type}`} role="status" aria-live="polite" aria-atomic="true">{toast.message}</div>
         )}
-
-        <EntryModal
-          open={showEntryModal}
-          onClose={()=>setShowEntryModal(false)}
-          simpleMode={simpleMode}
-          setSimpleMode={setSimpleMode}
-          quickEntry={quickEntry}
-          onQuickChange={(f,v)=>handleQuickEntryChange(f,v)}
-          onQuickAdd={handleQuickAddToBatch}
-          batchProducts={batchProducts}
-          onRemoveRow={handleRemoveBatchRow}
-          onSubmit={handleBatchSubmit}
-        />
 
         <QuantityModal
           open={showQuantityModal}
@@ -524,6 +565,17 @@ export default function Dashboard({ setUser }) {
           onClose={()=>setShowPriceModal(false)}
           onSubmit={handleUpdatePrices}
           loading={loading}
+        />
+        <ConfirmSaleModal
+          open={showConfirmSale}
+          items={salesCart}
+          subtotal={cartSubtotal}
+          discount={discountValue}
+          total={cartTotal}
+          formatCurrency={formatCurrency}
+          onClose={()=>setShowConfirmSale(false)}
+          onConfirm={persistSale}
+          busy={confirmBusy}
         />
 
         <footer className="app-footer">

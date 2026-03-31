@@ -22,12 +22,14 @@ export default function DashboardSidebar({
       </div>
       <div className="sidebar-content">
         <ul className="nav-menu">
+          <li className="nav-section">Geral</li>
           <li className="nav-item">
             <a href="#" className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={(e)=>{e.preventDefault(); onChange('dashboard'); onMobileClick();}}>
               <span className="nav-icon"><i className="fas fa-chart-bar"></i></span>
               <span>Dashboard</span>
             </a>
           </li>
+          <li className="nav-section">Estoque</li>
           <li className="nav-item">
             <a href="#" className={`nav-link ${activeTab === 'produtos' ? 'active' : ''}`} onClick={(e)=>{e.preventDefault(); onChange('produtos'); onMobileClick();}}>
               <span className="nav-icon"><i className="fas fa-boxes"></i></span>
@@ -35,11 +37,19 @@ export default function DashboardSidebar({
             </a>
           </li>
           <li className="nav-item">
+            <a href="#" className={`nav-link ${activeTab === 'entrada' ? 'active' : ''}`} onClick={(e)=>{e.preventDefault(); onChange('entrada'); onMobileClick();}}>
+              <span className="nav-icon"><i className="fas fa-arrow-down"></i></span>
+              <span>Entrada</span>
+            </a>
+          </li>
+          <li className="nav-section">Financeiro</li>
+          <li className="nav-item">
             <a href="#" className={`nav-link ${activeTab === 'vendas' ? 'active' : ''}`} onClick={(e)=>{e.preventDefault(); onChange('vendas'); onMobileClick();}}>
               <span className="nav-icon"><i className="fas fa-cash-register"></i></span>
               <span>Vendas</span>
             </a>
           </li>
+          <li className="nav-section">Sistema</li>
           <li className="nav-item">
             <a href="#" className={`nav-link ${activeTab === 'historico' ? 'active' : ''}`} onClick={(e)=>{e.preventDefault(); onChange('historico'); onMobileClick();}}>
               <span className="nav-icon"><i className="fas fa-chart-line"></i></span>
@@ -55,7 +65,7 @@ export default function DashboardSidebar({
           <li className="nav-item">
             <a href="#" className={`nav-link ${activeTab === 'custos' ? 'active' : ''}`} onClick={(e)=>{e.preventDefault(); onChange('custos'); onMobileClick();}}>
               <span className="nav-icon"><i className="fas fa-calculator"></i></span>
-              <span>Custos</span>
+              <span>Despesas</span>
             </a>
           </li>
           <li className="nav-item">

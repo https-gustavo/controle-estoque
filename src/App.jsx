@@ -8,16 +8,10 @@ import ResetPassword from './components/ResetPassword';
 import Dashboard from './components/Dashboard';
 import { supabase } from './supabaseClient';
 
-/**
- * Componente principal da aplicação
- * Gerencia roteamento e estado de autenticação global
- */
 function App() {
-  // Estados globais de autenticação
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Inicializa sessão e monitora mudanças de autenticação
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
@@ -28,7 +22,6 @@ function App() {
       }
     };
     init();
-    // Escuta mudanças no estado de autenticação
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
