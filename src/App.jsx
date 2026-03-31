@@ -6,7 +6,7 @@ import Signup from './components/Signup';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
 import Dashboard from './components/Dashboard';
-import { supabase } from './supabaseClient';
+import { isSupabaseConfigured, supabase } from './supabaseClient';
 import { disableDemo, enableDemo, isDemoEnabled } from './demo/demoMode';
 
 function App() {
@@ -17,17 +17,23 @@ function App() {
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!cancelled) {
-        setUser(session?.user ?? null);
-        if (isDemoEnabled()) setDemoUser({ id: 'demo', email: 'demo@local' });
-        setAuthChecked(true);
+      try {
+        if (!isSupabaseConfigured) throw new Error('Supabase não configurado');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!cancelled) setUser(session?.user ?? null);
+      } catch {
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) {
+          if (isDemoEnabled()) setDemoUser({ id: 'demo', email: 'demo@local' });
+          setAuthChecked(true);
+        }
       }
     };
     init();
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = isSupabaseConfigured ? supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-    });
+    }) : { data: null };
     return () => {
       cancelled = true;
       listener?.subscription?.unsubscribe?.();

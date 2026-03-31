@@ -185,7 +185,7 @@ export default function Login({ switchToSignup, switchToForgotPassword, setUser,
         {showCreatorLogo && (
           <img
             className="nl-credit-logo"
-            src="/creator-logo.png"
+            src={`${import.meta.env.BASE_URL || '/'}creator-logo.png`}
             alt=""
             onError={() => setShowCreatorLogo(false)}
           />

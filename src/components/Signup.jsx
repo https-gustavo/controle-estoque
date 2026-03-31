@@ -38,7 +38,7 @@ export default function Signup({ switchToLogin, setUser }) {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/reset-password`
+        emailRedirectTo: new URL(`${import.meta.env.BASE_URL || '/'}reset-password`, window.location.origin).toString()
       }
     });
     

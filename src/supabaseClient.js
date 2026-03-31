@@ -8,8 +8,16 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+export const isSupabaseConfigured = (() => {
+  if (!supabaseUrl || !supabaseAnonKey) return false
+  if (typeof supabaseUrl !== 'string') return false
+  if (!supabaseUrl.startsWith('https://')) return false
+  if (!supabaseUrl.includes('.supabase.co')) return false
+  return true
+})()
+
 // Cliente Supabase configurado para uso em toda a aplicação
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl || 'https://invalid.supabase.co', supabaseAnonKey || 'invalid', {
   auth: {
     autoRefreshToken: true,
     persistSession: true,

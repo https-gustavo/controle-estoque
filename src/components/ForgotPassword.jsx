@@ -25,22 +25,7 @@ export default function ForgotPassword({ switchToLogin }) {
     setLoading(true);
     setMessage('');
 
-    // Detecta automaticamente a URL base correta
-    const getResetUrl = () => {
-      const origin = window.location.origin;
-      const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
-      
-      let resetUrl;
-      if (isLocalhost) {
-        resetUrl = `${origin}/reset-password`;
-      } else {
-        resetUrl = `https://https-gustavo.github.io/controle-estoque/reset-password`;
-      }
-      
-      return resetUrl;
-    };
-
-    const resetUrl = getResetUrl();
+    const resetUrl = new URL(`${import.meta.env.BASE_URL || '/'}reset-password`, window.location.origin).toString();
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: resetUrl,
