@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+<<<<<<< HEAD
 export default defineConfig(({ command, mode }) => {
   const isProd = command === 'build' || mode === 'production'
   return {
@@ -26,5 +27,13 @@ export default defineConfig(({ command, mode }) => {
     build: {
       outDir: 'dist'
     }
+=======
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  base: '/controle-estoque/',
+  build: {
+    outDir: 'dist'
+>>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
   }
 })

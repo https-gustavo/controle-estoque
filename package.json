@@ -1,11 +1,15 @@
 {
   "name": "controle-estoque",
   "version": "0.0.0",
+<<<<<<< HEAD
   "type": "module",
+=======
+>>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
   "private": true,
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+<<<<<<< HEAD
     "preview": "vite preview",
     "api": "node server/index.js",
     "start": "node server/index.js",
@@ -32,6 +36,18 @@
     "@vitejs/plugin-react": "^4.3.1",
     "supertest": "^7.1.1",
     "vitest": "^1.6.0",
+=======
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.58.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.9.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+>>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
     "vite": "^5.0.0"
   }
 }

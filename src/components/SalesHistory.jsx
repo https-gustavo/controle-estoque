@@ -1,16 +1,37 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import '../styles/SalesHistory.css';
+<<<<<<< HEAD
 const SalesHistory = ({ userId, showToast, formatCurrency }) => {
+=======
+
+/**
+ * Componente para visualizar e gerenciar o histórico de vendas
+ * Inclui filtros por produto, data e paginação
+ */
+const SalesHistory = ({ userId, showToast, formatCurrency }) => {
+  // Estados para controle do histórico
+>>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
   const [salesHistoryGroups, setSalesHistoryGroups] = useState([]);
   const [historyFilter, setHistoryFilter] = useState('');
   const [historyDateFilter, setHistoryDateFilter] = useState('all');
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPageSize, setHistoryPageSize] = useState(10);
   
+<<<<<<< HEAD
   const [showSaleDetailsModal, setShowSaleDetailsModal] = useState(false);
   const [selectedSaleGroup, setSelectedSaleGroup] = useState(null);
 
+=======
+  // Modal de detalhes da venda
+  const [showSaleDetailsModal, setShowSaleDetailsModal] = useState(false);
+  const [selectedSaleGroup, setSelectedSaleGroup] = useState(null);
+
+  /**
+   * Busca e organiza o histórico de vendas do usuário
+   * Combina dados de vendas com informações dos produtos
+   */
+>>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
   const fetchSalesHistory = async () => {
     if (!userId) return;
 
@@ -38,6 +59,7 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
         return;
       }
 
+<<<<<<< HEAD
       const salesWithProducts = salesData.map(sale => {
         const date = sale.sale_date || sale.date || sale.created_at;
         const total = sale.total_price ?? sale.total ?? sale.totalPrice ?? 0;
@@ -48,6 +70,13 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
           products: productsData.find(p => p.id === sale.product_id)
         };
       });
+=======
+      // Combina dados de vendas com informações dos produtos
+      const salesWithProducts = salesData.map(sale => ({
+        ...sale,
+        products: productsData.find(p => p.id === sale.product_id)
+      }));
+>>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
 
       const grouped = salesWithProducts.reduce((acc, sale) => {
         const saleDate = new Date(sale.date);
@@ -363,4 +392,8 @@ const SalesHistory = ({ userId, showToast, formatCurrency }) => {
   );
 };
 
+<<<<<<< HEAD
 export default SalesHistory;
+=======
+export default SalesHistory;
+>>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
