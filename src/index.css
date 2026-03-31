@@ -1,5 +1,4 @@
 :root {
-<<<<<<< HEAD
   --primary-color: #4f46e5;
   --primary-hover: #4338ca;
   --primary-gradient: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
@@ -24,11 +23,6 @@
   line-height: 1.5;
   font-weight: 400;
   transition: background-color .2s ease, color .2s ease;
-=======
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
->>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -37,20 +31,14 @@
 
 html {
   color-scheme: light;
-<<<<<<< HEAD
   color: var(--text-primary);
   background-color: var(--background-color);
-=======
-  color: #213547;
-  background-color: #ffffff;
->>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-<<<<<<< HEAD
   background-color: var(--background-color);
   color: var(--text-primary);
 }
@@ -134,8 +122,3 @@ textarea:focus-visible,
 .badge.gray { background: #e5e7eb; color: #374151; border-color: #d1d5db; }
 .badge.red { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
 .badge.amber { background: #fef3c7; color: #92400e; border-color: #fbbf24; }
-=======
-  background-color: inherit;
-  color: inherit;
-}
->>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb

@@ -1,47 +1,22 @@
-<<<<<<< HEAD
-=======
-/* ========================================
-   APP - Estilos globais e reset
-   Base para toda a aplicação
-======================================== */
-
-/* Reset global e configurações base */
->>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
 html, body, #root {
   margin: 0;
   padding: 0;
   height: 100%;
   width: 100%;
-<<<<<<< HEAD
   background-color: var(--background-color);
   color: var(--text-primary);
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
 
-=======
-  background-color: #ffffff;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-/* Container principal da aplicação */
->>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
 .App {
   display: flex;
   justify-content: center;
   align-items: center;
-<<<<<<< HEAD
   min-height: 100vh;
   width: 100%;
   background: var(--background-color);
 }
 
-=======
-  height: 100vh;
-  width: 100%;
-}
-
-/* Wrapper para componentes de autenticação */
->>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
 .auth-wrapper {
   display: flex;
   flex-direction: column;
@@ -55,10 +30,6 @@ html, body, #root {
   text-align: initial;
 }
 
-<<<<<<< HEAD
-=======
-/* Oculta título redundante */
->>>>>>> b607bae02313d8af97551be9f1177bb0acb65ecb
 .auth-wrapper h1 { 
   display: none; 
 }
