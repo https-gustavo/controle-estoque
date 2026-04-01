@@ -6,6 +6,8 @@ import { printReceipt } from '../utils/printReceipt';
 import '../styles/SalesHistory.css';
 const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
   const [salesHistoryGroups, setSalesHistoryGroups] = useState([]);
+  const [entryHistoryGroups, setEntryHistoryGroups] = useState([]);
+  const [historyMode, setHistoryMode] = useState('vendas'); // vendas | entradas
   const [historyFilter, setHistoryFilter] = useState('');
   const [historyDateFilter, setHistoryDateFilter] = useState('all');
   const [historyPage, setHistoryPage] = useState(1);
@@ -54,7 +56,24 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
           return acc;
         }, {});
         const groupedArray = Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
-        setSalesHistoryGroups(groupedArray);
+      setSalesHistoryGroups(groupedArray);
+      // Entradas demo
+      const moves = demoApi.listMovements?.() || [];
+      const entries = moves.filter(m => m.type === 'entrada');
+      const emap = entries.map(m => ({
+        date: m.occurred_at || m.date,
+        total: Number(m.quantity || 0) * Number(m.cost_unit || 0),
+        items: [{ products: { name: m.product_name || 'Produto', barcode: m.barcode || '' }, quantity: Number(m.quantity || 0), unit_price: Number(m.cost_unit || 0), total: Number(m.quantity || 0) * Number(m.cost_unit || 0) }]
+      }));
+      const eGrouped = emap.reduce((acc, e) => {
+        const key = toDateTimeKeyBR(e.date);
+        if (!key) return acc;
+        if (!acc[key]) acc[key] = { key, date: e.date, items: [], total: 0 };
+        acc[key].items.push(e.items[0]);
+        acc[key].total += e.total;
+        return acc;
+      }, {});
+      setEntryHistoryGroups(Object.values(eGrouped).sort((a,b)=> new Date(b.date) - new Date(a.date)));
         return;
       }
       const { data: salesData, error: salesError } = await supabase
@@ -122,6 +141,51 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
 
       const groupedArray = Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
       setSalesHistoryGroups(groupedArray);
+      // Entradas reais
+      try {
+        const { data: movs, error: movErr } = await supabase
+          .from('stock_movements')
+          .select('product_id,quantity,cost_unit,occurred_at,created_at')
+          .eq('user_id', userId)
+          .eq('type', 'entrada')
+          .order('created_at', { ascending: false })
+          .limit(5000);
+        if (movErr) throw movErr;
+        const entriesRaw = Array.isArray(movs) ? movs : [];
+        const ids = Array.from(new Set(entriesRaw.map(m => m.product_id).filter(Boolean)));
+        let prodMap = new Map();
+        if (ids.length) {
+          const { data: pData, error: pErr } = await supabase
+            .from('products')
+            .select('id,name,barcode')
+            .eq('user_id', userId)
+            .in('id', ids);
+          if (pErr) throw pErr;
+          prodMap = new Map((Array.isArray(pData) ? pData : []).map(p => [String(p.id), p]));
+        }
+
+        const eGrouped = entriesRaw.reduce((acc, m) => {
+          const when = m.occurred_at || m.created_at;
+          const key = toDateTimeKeyBR(when);
+          if (!key) return acc;
+          if (!acc[key]) acc[key] = { key, date: when, items: [], total: 0 };
+          const p = prodMap.get(String(m.product_id || '')) || {};
+          const qty = Number(m.quantity || 0);
+          const unit = Number(m.cost_unit || 0);
+          const item = {
+            products: { name: p.name || 'Produto', barcode: p.barcode || '' },
+            quantity: qty,
+            unit_price: unit,
+            total: qty * unit
+          };
+          acc[key].items.push(item);
+          acc[key].total += item.total;
+          return acc;
+        }, {});
+        setEntryHistoryGroups(Object.values(eGrouped).sort((a,b)=> new Date(b.date) - new Date(a.date)));
+      } catch (e) {
+        showToast?.(e?.message || 'Erro ao carregar histórico de entradas', 'danger');
+      }
     } catch (error) {
       showToast?.('Erro ao carregar histórico de vendas', 'danger');
     }
@@ -131,12 +195,23 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
     fetchSalesHistory();
   }, [userId]);
 
+  useEffect(() => {
+    fetchSalesHistory();
+  }, [historyMode]);
+
+  useEffect(() => {
+    const handler = () => fetchSalesHistory();
+    window.addEventListener('dashboard:refresh', handler);
+    return () => window.removeEventListener('dashboard:refresh', handler);
+  }, [userId]);
+
   const qRaw = String(historyFilter || '');
   const q = qRaw.toLowerCase().trim();
   const qDigits = q.replace(/\D/g, '');
   const idOnlySearch = Boolean(qDigits) && /^\s*(id[:#]?\s*)?\d+\s*$/i.test(qRaw);
 
-  const filteredSalesHistoryGroups = salesHistoryGroups.filter(group => {
+  const sourceGroups = historyMode === 'entradas' ? entryHistoryGroups : salesHistoryGroups;
+  const filteredSalesHistoryGroups = sourceGroups.filter(group => {
     if (historyFilter) {
       const idDigits = String(group.saleId || '').replace(/\D/g, '');
       if (idOnlySearch) return idDigits.includes(qDigits);
@@ -383,13 +458,17 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
   return (
     <div className="sales-history-page">
       <div className="page-header">
-        <h2><i className="fas fa-chart-line"></i> Histórico de Vendas</h2>
-        <p className="page-subtitle">Visualize e gerencie todo o histórico de vendas da sua loja.</p>
+        <h2><i className="fas fa-chart-line"></i> Histórico</h2>
+        <p className="page-subtitle">Vendas e entradas de estoque.</p>
       </div>
 
       <div className="sales-history card">
         <div className="history-header">
           <div className="history-controls">
+            <div className="history-tabs" style={{ display:'flex', gap: 8, alignItems:'center' }}>
+              <button className={`btn-outline ${historyMode==='vendas'?'active':''}`} onClick={()=>{ setHistoryMode('vendas'); setHistoryPage(1); }}>Vendas</button>
+              <button className={`btn-outline ${historyMode==='entradas'?'active':''}`} onClick={()=>{ setHistoryMode('entradas'); setHistoryPage(1); }}>Entradas</button>
+            </div>
             <div className="history-filters">
               <input 
                 type="text" 
@@ -464,7 +543,7 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
                     </div>
                   </div>
                   <div className="history-meta-row">
-                    <span className="history-sale-id"><span className="history-sale-id-label">ID</span> {group.saleId || '—'}</span>
+                    <span className="history-sale-id"><span className="history-sale-id-label">{historyMode==='entradas'?'Entrada':'Venda'}</span> {group.saleId || group.key}</span>
                   </div>
                   
                   <div className="history-items">
@@ -478,7 +557,7 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
                           <div className="product-details">
                             {item.products?.barcode && <span className="product-barcode">#{item.products.barcode}</span>}
                             <span className="product-quantity">Qtd: {item.quantity}</span>
-                            <span className="product-unit-price">Unit: {formatCurrency(item.unit_price || 0)}</span>
+                            <span className="product-unit-price">{historyMode==='entradas'?'Custo:':'Unit:'} {formatCurrency(item.unit_price || 0)}</span>
                           </div>
                         </div>
                         <div className="product-total">
@@ -611,7 +690,11 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
             </div>
             <div className="modal-footer">
               <button className="btn-outline" onClick={() => setShowSaleDetailsModal(false)} disabled={saving}>Fechar</button>
-              {editMode ? (
+              {historyMode==='entradas' ? (
+                <button className="btn-primary" onClick={() => printSaleGroup(selectedSaleGroup)}>
+                  <i className="fas fa-print"></i> Imprimir
+                </button>
+              ) : editMode ? (
                 <button className="btn-success" onClick={applyEdits} disabled={saving}>
                   <i className="fas fa-save"></i> {saving ? 'Salvando...' : 'Salvar alterações'}
                 </button>

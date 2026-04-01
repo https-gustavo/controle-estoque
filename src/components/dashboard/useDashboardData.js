@@ -49,6 +49,7 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
   const [lowStock, setLowStock] = useState([]); // [{id,name,barcode,quantity}]
   const [recent, setRecent] = useState([]); // últimas vendas opcionais
   const [expensesRows, setExpensesRows] = useState([]); // despesas no período (export/dashboard)
+  const [purchasesRows, setPurchasesRows] = useState([]); // entradas de estoque no período
   const [trend, setTrend] = useState({ revenue: null, orders: null, items: null, avgTicket: null });
   const cacheRef = useRef(new Map());
 
@@ -280,6 +281,27 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
         if (Array.isArray(eData)) expData = eData;
       } catch {}
       setExpensesRows(expData);
+      // Entradas (compras de mercadoria)
+      let entData = [];
+      try {
+        const { data: mData } = await supabase
+          .from('stock_movements')
+          .select('product_id,quantity,cost_unit,occurred_at,created_at')
+          .eq('user_id', userId)
+          .eq('type', 'entrada')
+          .order('created_at', { ascending: false })
+          .limit(5000);
+        if (Array.isArray(mData)) {
+          const fromTs = new Date(rangeFrom).getTime();
+          const toTs = new Date(`${rangeTo}T23:59:59.999Z`).getTime();
+          entData = mData.filter(m => {
+            const d = new Date(m.occurred_at || m.created_at);
+            const t = d.getTime();
+            return !Number.isNaN(t) && t >= fromTs && t <= toTs;
+          });
+        }
+      } catch {}
+      setPurchasesRows(entData);
 
       const productsAll = Array.isArray(prodsAll) ? prodsAll : [];
       const byId = new Map(productsAll.map(p => [String(p.id), p]));
@@ -296,6 +318,7 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
         return a + cost;
       }, 0);
       const expenses = expData.reduce((a, e) => a + Number(e.amount || 0), 0);
+      const purchases = entData.reduce((a, m) => a + (Number(m.quantity || 0) * Number(m.cost_unit || 0)), 0);
       const stockInvested = productsAll.reduce((a, p) => a + Number(p.cost_price || 0) * Number(p.quantity || 0), 0);
       const stockPotential = productsAll.reduce((a, p) => a + Number(p.sale_price || 0) * Number(p.quantity || 0), 0);
       const grossProfit = sum.revenue - cogs;
@@ -304,6 +327,7 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
 
       sum.cogs = cogs;
       sum.expenses = expenses;
+      sum.purchases = purchases;
       sum.netProfit = netProfit;
       sum.stockInvested = stockInvested;
       sum.stockPotential = stockPotential;
@@ -316,6 +340,11 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
         const k = String(e.date || '').slice(0, 10);
         expByDay[k] = (expByDay[k] || 0) + Number(e.amount || 0);
       });
+      const purchByDay = {};
+      entData.forEach(m => {
+        const k = normDay(m.occurred_at);
+        purchByDay[k] = (purchByDay[k] || 0) + (Number(m.quantity || 0) * Number(m.cost_unit || 0));
+      });
       const cogsByDay = {};
       srows.forEach(s => {
         const k = normDay(s.sale_date || s.date || s.created_at);
@@ -327,7 +356,8 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
         const rev = Number(revByDay[k] || 0);
         const ex = Number(expByDay[k] || 0);
         const cg = Number(cogsByDay[k] || 0);
-        return { day: k, revenue: rev, expenses: ex, profit: rev - cg - ex };
+        const purch = Number(purchByDay[k] || 0);
+        return { day: k, revenue: rev, expenses: ex, purchases: purch, profit: rev - cg - ex };
       });
 
       // Previous period trend
@@ -534,7 +564,7 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
     // state
     rangeFrom, rangeTo, setRangeFrom, setRangeTo, setPreset,
     loading, error,
-    summary, daily, financeDaily, top, lowStock, recent, expensesRows, trend,
+    summary, daily, financeDaily, top, lowStock, recent, expensesRows, purchasesRows, trend,
     // actions
     loadDashboard, exportCsv,
   };

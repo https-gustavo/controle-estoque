@@ -144,28 +144,31 @@ export default function StockEntryForm({ supabase, userId, demo, products, onAft
   }, [products, showToast]);
 
   const saveMovement = async ({ product_id, quantity, cost_unit }) => {
-    try {
-      const now = new Date().toISOString();
-      const modern = {
-        user_id: userId,
-        product_id,
-        type: 'entrada',
-        quantity: Number(quantity || 0),
-        cost_unit: Number(cost_unit || 0),
-        occurred_at: now
-      };
-      const legacy = {
-        user_id: userId,
-        product_id,
-        type: 'entrada',
-        quantity: Number(quantity || 0)
-      };
-      let { error } = await supabase.from('stock_movements').insert([modern]);
-      if (error) {
-        ({ error } = await supabase.from('stock_movements').insert([legacy]));
-      }
-      if (error) return;
-    } catch {}
+    const now = new Date().toISOString();
+    const pid = (typeof product_id === 'string' && /^\d+$/.test(product_id)) ? product_id : product_id;
+    const modern = {
+      user_id: userId,
+      product_id: pid,
+      type: 'entrada',
+      quantity: Number(quantity || 0),
+      cost_unit: Number(cost_unit || 0),
+      occurred_at: now
+    };
+    const { error } = await supabase.from('stock_movements').insert([modern]);
+    if (!error) return true;
+    const msg = String(error.message || '').toLowerCase();
+    const canFallback = msg.includes('cost_unit') || msg.includes('occurred_at') || msg.includes('column') || msg.includes('schema');
+    if (!canFallback) throw error;
+    const legacy = {
+      user_id: userId,
+      product_id: pid,
+      type: 'entrada',
+      quantity: Number(quantity || 0)
+    };
+    const { error: err2 } = await supabase.from('stock_movements').insert([legacy]);
+    if (err2) throw err2;
+    showToast?.('Entrada registrada sem custo (atualize a tabela stock_movements)', 'danger');
+    return false;
   };
 
   const applyOne = async (entry, state) => {

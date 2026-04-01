@@ -5,7 +5,7 @@ function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 export default function FinanceChart({ rows, formatCurrency, onEmptyCta }) {
   const [hover, setHover] = useState(null);
   const data = Array.isArray(rows) ? rows : [];
-  const hasData = data.some(r => Number(r.revenue || 0) !== 0 || Number(r.expenses || 0) !== 0 || Number(r.profit || 0) !== 0);
+  const hasData = data.some(r => Number(r.revenue || 0) !== 0 || Number(r.expenses || 0) !== 0 || Number(r.purchases || 0) !== 0 || Number(r.profit || 0) !== 0);
   const axisFmt = useMemo(() => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }), []);
 
   const chart = useMemo(() => {
@@ -19,6 +19,7 @@ export default function FinanceChart({ rows, formatCurrency, onEmptyCta }) {
     data.forEach(r => {
       ysAll.push(Number(r.revenue || 0));
       ysAll.push(Number(r.expenses || 0));
+      ysAll.push(Number(r.purchases || 0));
       ysAll.push(Number(r.profit || 0));
     });
     const minV = ysAll.length ? Math.min(...ysAll, 0) : 0;
@@ -76,12 +77,13 @@ export default function FinanceChart({ rows, formatCurrency, onEmptyCta }) {
   return (
     <div className="card" style={{ padding: '1rem' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 8 }}>
-        <strong>Receita, despesas e lucro</strong>
+        <strong>Receita, despesas, compras e lucro</strong>
         <div className="helper-text">Período diário</div>
       </div>
       <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom: 10 }}>
         <span className="badge green">Receita</span>
         <span className="badge red">Despesas</span>
+        <span className="badge" style={{ background:'#7c3aed', color:'#fff', borderColor:'#7c3aed' }}>Compras</span>
         <span className="badge info">Lucro</span>
       </div>
       <div style={{ width:'100%', height:360, position:'relative' }}>
@@ -103,12 +105,14 @@ export default function FinanceChart({ rows, formatCurrency, onEmptyCta }) {
           <line x1={chart.pad.l} x2={chart.w - chart.pad.r} y1={chart.zeroY} y2={chart.zeroY} stroke="#cbd5e1" strokeWidth="1" />
           <polyline points={chart.points('revenue')} fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
           <polyline points={chart.points('expenses')} fill="none" stroke="#dc2626" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+          <polyline points={chart.points('purchases')} fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
           <polyline points={chart.points('profit')} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
           {hover && (
             <g>
               <line x1={hover.x} x2={hover.x} y1={chart.pad.t} y2={chart.h - chart.pad.b} stroke="#94a3b8" strokeDasharray="4 3" />
               <circle cx={hover.x} cy={chart.y(data[hover.idx].revenue)} r="4" fill="#16a34a" />
               <circle cx={hover.x} cy={chart.y(data[hover.idx].expenses)} r="4" fill="#dc2626" />
+              <circle cx={hover.x} cy={chart.y(data[hover.idx].purchases)} r="4" fill="#7c3aed" />
               <circle cx={hover.x} cy={chart.y(data[hover.idx].profit)} r="4" fill="#2563eb" />
             </g>
           )}
@@ -127,10 +131,11 @@ export default function FinanceChart({ rows, formatCurrency, onEmptyCta }) {
           })}
         </svg>
         {row && (
-          <div style={{ position:'absolute', right: 12, top: 12, background:'#fff', border:'1px solid var(--border-color)', borderRadius: 10, padding:'10px 12px', boxShadow: 'var(--shadow-sm)', minWidth: 220 }}>
+          <div style={{ position:'absolute', right: 12, top: 12, background:'#fff', border:'1px solid var(--border-color)', borderRadius: 10, padding:'10px 12px', boxShadow: 'var(--shadow-sm)', minWidth: 240, pointerEvents: 'none' }}>
             <div style={{ fontWeight: 700, marginBottom: 6 }}>{String(row.day).split('-').reverse().join('/')}</div>
             <div className="helper-text" style={{ display:'flex', justifyContent:'space-between' }}><span>Receita</span><span>{formatCurrency(row.revenue || 0)}</span></div>
             <div className="helper-text" style={{ display:'flex', justifyContent:'space-between' }}><span>Despesas</span><span>{formatCurrency(row.expenses || 0)}</span></div>
+            <div className="helper-text" style={{ display:'flex', justifyContent:'space-between' }}><span>Compras</span><span>{formatCurrency(row.purchases || 0)}</span></div>
             <div className="helper-text" style={{ display:'flex', justifyContent:'space-between' }}><span>Lucro</span><span style={{ fontWeight: 700, color: Number(row.profit || 0) < 0 ? '#dc2626' : '#16a34a' }}>{formatCurrency(row.profit || 0)}</span></div>
           </div>
         )}
