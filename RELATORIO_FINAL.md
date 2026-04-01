@@ -127,12 +127,46 @@ Migrações relevantes estão em:
 
 ## 6. Usabilidade e Acessibilidade
 
-- Fluxo otimizado para teclado e operação rápida
-- Leitor de código de barras integrado via eventos (scanner)
-- Feedback visual com toasts e estados de carregamento
-- Ajustes de UI/UX baseados em testes com usuários
+### 6.1 Usabilidade (operação)
 
-## 7. Validação com usuários e feedback incorporado
+- Fluxo otimizado para teclado e operação rápida (especialmente em Vendas e Entrada)
+- Leitor de código de barras com preenchimento automático e foco direcionado para campos numéricos
+- Ações frequentes com poucos cliques (adicionar item, ajustar quantidade, confirmar)
+- Feedback imediato com estados de carregamento e mensagens (sucesso/erro)
+
+### 6.2 Acessibilidade (a11y)
+
+O sistema foi desenvolvido com práticas de acessibilidade para facilitar o uso por pessoas com diferentes necessidades e para funcionar melhor com tecnologias assistivas.
+
+- Navegação por teclado em campos principais (Enter para submeter, foco direcionado após ações como leitura de código)
+- Componentes de modal com atributos de acessibilidade (role de diálogo e botões com rótulos)
+- Mensagens de status/erro exibidas de forma mais compatível com leitores de tela (alertas e feedback textual)
+- Rótulos e descrições em elementos interativos (por exemplo, botões de ações com nomes claros)
+
+Teste prático sugerido: NVDA (Windows) ou leitor de tela equivalente para validar leitura de botões, campos e mensagens.
+
+## 7. API e Integrações
+
+O projeto também inclui camadas de API para integração externa e para suportar relatórios/consultas.
+
+### 7.1 API REST (Node/Express)
+
+- Serviço disponível em `server/` com endpoints para produtos
+- Autenticação por API Key (middleware) e documentação OpenAPI em `server/docs/openapi.json`
+- Principais rotas:
+  - `GET /api/produtos` (listar)
+  - `POST /api/produtos` (criar)
+  - `GET /api/produtos/{id}` (detalhar)
+  - `PUT /api/produtos/{id}` (atualizar)
+  - `DELETE /api/produtos/{id}` (remover)
+
+### 7.2 Supabase (REST/RPC)
+
+- Autenticação e dados em Supabase, com segurança via RLS
+- Relatórios via RPC (por exemplo: resumo de vendas no período e agregações diárias)
+- Documentação resumida em `API.md`
+
+## 8. Validação com usuários e feedback incorporado
 
 Durante testes, foram coletadas sugestões e aplicadas melhorias, como:
 
@@ -143,22 +177,22 @@ Durante testes, foram coletadas sugestões e aplicadas melhorias, como:
 - Fechamento automático do modal ao salvar edição
 - Separação de compras no gráfico financeiro
 
-## 8. Limitações conhecidas
+## 9. Limitações conhecidas
 
 - Responsividade mobile ainda pode exigir refinamentos adicionais em algumas telas e modais
 - Métricas financeiras dependem de consistência de dados (custos, entradas, despesas)
 - Ausência de suíte de testes automatizados no repositório (Vitest configurado, mas sem casos)
 
-## 9. Trabalhos futuros (melhorias)
+## 10. Trabalhos futuros (melhorias)
 
 - Refinar versão mobile (layout, tabelas, modais, UX de carrinho)
 - Ampliar relatórios: filtros por produto/categoria, exportações adicionais
 - Evoluir auditoria: histórico unificado com “saídas” (vendas/devoluções/ajustes)
 - Testes automatizados (Vitest) para fluxos críticos
 
-## 10. Guia rápido de execução
+## 11. Guia rápido de execução
 
-### 10.1 Rodar localmente
+### 11.1 Rodar localmente
 
 1. Instalar dependências:
    - `npm install`
@@ -168,10 +202,9 @@ Durante testes, foram coletadas sugestões e aplicadas melhorias, como:
 3. Rodar:
    - `npm run dev`
 
-### 10.2 Publicar (GitHub Pages)
+### 11.2 Publicar (GitHub Pages)
 
 1. No GitHub, configurar variables/secrets:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY` (publishable key)
 2. Push na branch `main` (workflow gera o deploy automaticamente).
-
