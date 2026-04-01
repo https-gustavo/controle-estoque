@@ -21,7 +21,7 @@ export default function ProductEditModal({ open, product, onClose, onSave, savin
 
   if (!open || !product) return null;
 
-  const submit = () => {
+  const submit = async () => {
     const patch = {
       name: String(f.name || '').trim(),
       barcode: String(f.barcode || '').trim(),
@@ -29,7 +29,8 @@ export default function ProductEditModal({ open, product, onClose, onSave, savin
       cost_price: toNum(f.cost_price),
       sale_price: toNum(f.sale_price)
     };
-    onSave?.(product.id, patch);
+    const ok = await onSave?.(product.id, patch);
+    if (ok) onClose?.();
   };
 
   return (

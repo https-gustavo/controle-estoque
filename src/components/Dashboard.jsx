@@ -49,6 +49,7 @@ export default function Dashboard({ setUser, demo, onExitDemo }) {
   const [saleSuggestionIndex, setSaleSuggestionIndex] = useState(-1);
   const [salesCart, setSalesCart] = useState([]);
   const [saleDiscount, setSaleDiscount] = useState('');
+  const [saleDiscountPct, setSaleDiscountPct] = useState('');
 
   const formatCurrency = (v)=>Number(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
   const handleQuickSaleSearchChange = (value) => {
@@ -83,7 +84,10 @@ export default function Dashboard({ setUser, demo, onExitDemo }) {
   const updateCartQty = (id, v) => setSalesCart(prev => prev.map(i => i.id===id ? { ...i, quantity: Math.max(1, parseInt(v||'1',10)||1)} : i));
   const removeFromCart = (id) => setSalesCart(prev => prev.filter(i => i.id !== id));
   const cartSubtotal = salesCart.reduce((a,b)=>a + Number(b.unit_price||0)*Number(b.quantity||0), 0);
-  const discountValue = Math.min(Number(saleDiscount||0), cartSubtotal);
+  const pct = Math.max(0, Number(saleDiscountPct || 0));
+  const discountFromPct = pct > 0 ? (cartSubtotal * (pct / 100)) : 0;
+  const discountFromValue = Math.max(0, Number(saleDiscount || 0));
+  const discountValue = Math.min(pct > 0 ? discountFromPct : discountFromValue, cartSubtotal);
   const cartTotal = Math.max(0, cartSubtotal - discountValue);
   const [showConfirmSale, setShowConfirmSale] = useState(false);
   const [confirmBusy, setConfirmBusy] = useState(false);
@@ -382,9 +386,11 @@ export default function Dashboard({ setUser, demo, onExitDemo }) {
       }
       setProducts(prev => prev.map(p => p.id === id ? { ...p, ...clean } : p));
       showToast('Produto atualizado', 'success');
+      return true;
     } catch (e) {
       setError(e?.message || 'Falha ao atualizar produto');
       showToast('Erro ao atualizar produto', 'danger');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -634,6 +640,8 @@ export default function Dashboard({ setUser, demo, onExitDemo }) {
               removeFromCart={removeFromCart}
               saleDiscount={saleDiscount}
               setSaleDiscount={setSaleDiscount}
+              saleDiscountPct={saleDiscountPct}
+              setSaleDiscountPct={setSaleDiscountPct}
               cartSubtotal={cartSubtotal}
               discountValue={discountValue}
               cartTotal={cartTotal}

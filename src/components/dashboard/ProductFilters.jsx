@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ProductAutocomplete from './ProductAutocomplete';
 
-export default function ProductFilters({ search, setSearch, filters, setFilters, onApply, products }) {
+export default function ProductFilters({ search, setSearch, filters, setFilters, onApply, products, sortKey, setSortKey }) {
   const [local, setLocal] = useState({
     search: search || '',
     minPrice: filters.minPrice || '',
@@ -61,6 +61,17 @@ export default function ProductFilters({ search, setSearch, filters, setFilters,
           placeholder="Buscar por nome, código ou código de barras"
         />
         <div className="toolbar-group">
+          {setSortKey && (
+            <select className="form-input" style={{ width: 220 }} value={sortKey || 'none'} onChange={(e)=>setSortKey(e.target.value)}>
+              <option value="none">Ordenar: padrão</option>
+              <option value="name_asc">Nome (A–Z)</option>
+              <option value="name_desc">Nome (Z–A)</option>
+              <option value="stock_desc">Estoque (maior)</option>
+              <option value="stock_asc">Estoque (menor)</option>
+              <option value="price_desc">Preço (maior)</option>
+              <option value="price_asc">Preço (menor)</option>
+            </select>
+          )}
           {activeFiltersCount > 0 && (
             <span className="badge info" title={`${activeFiltersCount} filtros ativos`}>{activeFiltersCount} filtros</span>
           )}

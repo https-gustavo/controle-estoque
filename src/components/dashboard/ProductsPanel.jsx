@@ -15,7 +15,18 @@ export default function ProductsPanel({
   onGoEntry,
   onUpdate
 }) {
-  const rows = useMemo(()=> filteredProducts.map(p => ({ ...p })), [filteredProducts]);
+  const [sortKey, setSortKey] = useState('none');
+  const rows = useMemo(()=> {
+    const arr = filteredProducts.map(p => ({ ...p }));
+    const by = (a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' });
+    if (sortKey === 'name_asc') return arr.sort((a,b)=>by(String(a.name||''), String(b.name||'')));
+    if (sortKey === 'name_desc') return arr.sort((a,b)=>by(String(b.name||''), String(a.name||'')));
+    if (sortKey === 'stock_desc') return arr.sort((a,b)=>Number(b.quantity||0) - Number(a.quantity||0));
+    if (sortKey === 'stock_asc') return arr.sort((a,b)=>Number(a.quantity||0) - Number(b.quantity||0));
+    if (sortKey === 'price_desc') return arr.sort((a,b)=>Number(b.sale_price||0) - Number(a.sale_price||0));
+    if (sortKey === 'price_asc') return arr.sort((a,b)=>Number(a.sale_price||0) - Number(b.sale_price||0));
+    return arr;
+  }, [filteredProducts, sortKey]);
   const [editOpen, setEditOpen] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
   const handleAdd = (payload, clear) => {
@@ -37,7 +48,7 @@ export default function ProductsPanel({
       </div>
       <div className="page-box">
         <div className="stack">
-          <ProductFilters search={search} setSearch={setSearch} filters={filters} setFilters={setFilters} onApply={()=>{}} products={products} />
+          <ProductFilters search={search} setSearch={setSearch} filters={filters} setFilters={setFilters} onApply={()=>{}} products={products} sortKey={sortKey} setSortKey={setSortKey} />
 
           <ProductTable
             rows={rows}

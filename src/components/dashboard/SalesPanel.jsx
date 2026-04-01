@@ -17,6 +17,8 @@ export default function SalesPanel({
   removeFromCart,
   saleDiscount,
   setSaleDiscount,
+  saleDiscountPct,
+  setSaleDiscountPct,
   cartSubtotal,
   discountValue,
   cartTotal,
@@ -76,7 +78,7 @@ export default function SalesPanel({
                   </div>
                   <div className="chip-qty">
                     <button className="btn-outline small" aria-label="Diminuir quantidade" onClick={() => decCartQty(item.id)}>-</button>
-                    <input type="number" min="1" value={item.quantity} aria-label="Quantidade" onChange={(e) => updateCartQty(item.id, e.target.value)} />
+                    <input className="qty-input" type="number" min="1" value={item.quantity} aria-label="Quantidade" onChange={(e) => updateCartQty(item.id, e.target.value)} />
                     <button className="btn-outline small" aria-label="Aumentar quantidade" onClick={() => incCartQty(item.id)}>+</button>
                   </div>
                   <div className="chip-total">{formatCurrency(item.unit_price * item.quantity)}</div>
@@ -90,9 +92,15 @@ export default function SalesPanel({
 
           <div className="sale-summary">
             <div className="summary-row"><span>Subtotal</span><strong>{formatCurrency(cartSubtotal)}</strong></div>
-            <div className="form-group">
-              <label>Desconto (R$)</label>
-              <input className="form-input" type="number" min="0" step="0.01" value={saleDiscount} onChange={(e) => setSaleDiscount(e.target.value)} />
+            <div className="form-row" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap: 12 }}>
+              <div className="form-group">
+                <label>Desconto (R$)</label>
+                <input className="form-input" type="number" min="0" step="0.01" value={saleDiscount} onChange={(e) => { setSaleDiscount(e.target.value); if (Number(e.target.value || 0) > 0) setSaleDiscountPct(''); }} />
+              </div>
+              <div className="form-group">
+                <label>Desconto (%)</label>
+                <input className="form-input" type="number" min="0" step="0.1" value={saleDiscountPct} onChange={(e) => { setSaleDiscountPct(e.target.value); if (Number(e.target.value || 0) > 0) setSaleDiscount(''); }} />
+              </div>
             </div>
             {discountValue > 0 && (
               <div className="summary-row discount-row"><span>Desconto</span><strong>-{formatCurrency(discountValue)}</strong></div>

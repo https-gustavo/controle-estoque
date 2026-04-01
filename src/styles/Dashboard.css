@@ -2144,6 +2144,24 @@ body {
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+.modal.batch-modal {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal.batch-modal .modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.modal.batch-modal .modal-footer {
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  background: #ffffff;
+}
+
 /* Modo Simples - Formulário refatorado */
 .simple-form {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
@@ -4903,6 +4921,15 @@ body {
   display: flex; 
   align-items: center; 
   gap: 0.6rem;
+}
+.vendas-page .chip-qty .btn-outline.small {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
 }
 .vendas-page .chip-qty input { 
   width: 80px;

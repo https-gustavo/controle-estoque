@@ -17,6 +17,8 @@ export default function StockEntryPanel({ userId, demo, products, onRefreshProdu
   const handleCreate = (payload) => {
     const evt = new CustomEvent('products:add', { detail: payload });
     window.dispatchEvent(evt);
+    setCreateOpen(false);
+    setCreateInitial(null);
     onRefreshProducts?.();
   };
   const handleCreateBatch = (list) => {

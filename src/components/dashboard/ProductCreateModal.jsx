@@ -102,16 +102,8 @@ export default function ProductCreateModal({ open, onClose, onCreate, onCreateBa
   };
 
   return (
-    <div
-      className="modal-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="product-create-title"
-      tabIndex={-1}
-      onKeyDown={(e)=>{ if (e.key === 'Escape') onClose?.(); }}
-      onClick={onClose}
-    >
-      <div className="modal" onClick={(e)=>e.stopPropagation()}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="product-create-title" tabIndex={-1} onKeyDown={(e)=>{ if (e.key === 'Escape') onClose?.(); }} onClick={onClose}>
+      <div className="modal batch-modal" onClick={(e)=>e.stopPropagation()}>
         <div className="modal-header">
           <h2 id="product-create-title">Cadastro de produtos</h2>
           <button className="close-btn" onClick={onClose} aria-label="Fechar">×</button>
