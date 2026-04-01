@@ -145,7 +145,7 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
       try {
         const { data: movs, error: movErr } = await supabase
           .from('stock_movements')
-          .select('product_id,quantity,cost_unit,occurred_at,created_at')
+          .select('product_id,quantity,cost_unit,occurred_at,created_at,batch_id')
           .eq('user_id', userId)
           .eq('type', 'entrada')
           .order('created_at', { ascending: false })
@@ -166,7 +166,7 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
 
         const eGrouped = entriesRaw.reduce((acc, m) => {
           const when = m.occurred_at || m.created_at;
-          const key = toDateTimeKeyBR(when);
+          const key = m.batch_id ? `batch:${m.batch_id}` : toDateTimeKeyBR(when);
           if (!key) return acc;
           if (!acc[key]) acc[key] = { key, date: when, items: [], total: 0 };
           const p = prodMap.get(String(m.product_id || '')) || {};
@@ -180,6 +180,9 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
           };
           acc[key].items.push(item);
           acc[key].total += item.total;
+          const prevTs = new Date(acc[key].date).getTime();
+          const curTs = new Date(when).getTime();
+          if (!Number.isNaN(prevTs) && !Number.isNaN(curTs) && curTs < prevTs) acc[key].date = when;
           return acc;
         }, {});
         setEntryHistoryGroups(Object.values(eGrouped).sort((a,b)=> new Date(b.date) - new Date(a.date)));

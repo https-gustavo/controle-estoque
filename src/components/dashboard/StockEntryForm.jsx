@@ -143,7 +143,7 @@ export default function StockEntryForm({ supabase, userId, demo, products, onAft
     return () => window.removeEventListener('scanner:code', onScan);
   }, [products, showToast]);
 
-  const saveMovement = async ({ product_id, quantity, cost_unit }) => {
+  const saveMovement = async ({ product_id, quantity, cost_unit, batch_id }) => {
     const now = new Date().toISOString();
     const pid = (typeof product_id === 'string' && /^\d+$/.test(product_id)) ? product_id : product_id;
     const modern = {
@@ -152,12 +152,13 @@ export default function StockEntryForm({ supabase, userId, demo, products, onAft
       type: 'entrada',
       quantity: Number(quantity || 0),
       cost_unit: Number(cost_unit || 0),
-      occurred_at: now
+      occurred_at: now,
+      batch_id: batch_id || null
     };
     const { error } = await supabase.from('stock_movements').insert([modern]);
     if (!error) return true;
     const msg = String(error.message || '').toLowerCase();
-    const canFallback = msg.includes('cost_unit') || msg.includes('occurred_at') || msg.includes('column') || msg.includes('schema');
+    const canFallback = msg.includes('cost_unit') || msg.includes('occurred_at') || msg.includes('batch_id') || msg.includes('column') || msg.includes('schema');
     if (!canFallback) throw error;
     const legacy = {
       user_id: userId,
@@ -171,7 +172,7 @@ export default function StockEntryForm({ supabase, userId, demo, products, onAft
     return false;
   };
 
-  const applyOne = async (entry, state) => {
+  const applyOne = async (entry, state, batchId) => {
     const qty = Number(entry.quantity || 0);
     const name = String(entry.name || '').trim();
     const barcode = String(entry.barcode || '').trim();
@@ -243,7 +244,7 @@ export default function StockEntryForm({ supabase, userId, demo, products, onAft
         ({ error } = await tryUpdate(rest));
       }
       if (error) throw error;
-      await saveMovement({ product_id: existingLocal.id, quantity: qty, cost_unit: purchaseCost });
+      await saveMovement({ product_id: existingLocal.id, quantity: qty, cost_unit: purchaseCost, batch_id: batchId });
       const updated = { ...existingLocal, ...patch };
       state.byId.set(String(existingLocal.id), updated);
       if (updated?.barcode) state.byBarcode.set(String(updated.barcode), updated);
@@ -267,7 +268,7 @@ export default function StockEntryForm({ supabase, userId, demo, products, onAft
       ({ data, error } = await tryInsert(rest));
     }
     if (error) throw error;
-    await saveMovement({ product_id: data?.id, quantity: qty, cost_unit: purchaseCost });
+    await saveMovement({ product_id: data?.id, quantity: qty, cost_unit: purchaseCost, batch_id: batchId });
     if (data?.id) state.byId.set(String(data.id), data);
     if (data?.barcode) state.byBarcode.set(String(data.barcode), data);
     return { ok: true };
@@ -283,9 +284,12 @@ export default function StockEntryForm({ supabase, userId, demo, products, onAft
       const byId = new Map(base.map(p => [String(p.id), p]));
       const byBarcode = new Map(base.filter(p => p?.barcode).map(p => [String(p.barcode), p]));
       const state = { byId, byBarcode };
+      const batchId = (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
+        ? globalThis.crypto.randomUUID()
+        : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
       let ok = 0;
       for (const e of entries) {
-        const res = await applyOne(e, state);
+        const res = await applyOne(e, state, batchId);
         if (res.ok) ok += 1;
       }
       setEntries([]);
