@@ -65,6 +65,10 @@ export default function FinanceChart({ rows, formatCurrency, onEmptyCta }) {
   if (!hasData) {
     return (
       <div className="card" style={{ padding: '1rem' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 8 }}>
+          <strong>Receita, despesas, compras e lucro</strong>
+          <div className="helper-text">Período diário</div>
+        </div>
         <div className="helper-text" style={{ marginBottom: 12 }}>Sem dados no período.</div>
         <button className="btn-primary" onClick={onEmptyCta}>Registrar vendas</button>
       </div>

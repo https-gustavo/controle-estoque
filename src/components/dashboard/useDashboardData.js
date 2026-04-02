@@ -5,7 +5,13 @@ import { toDayKeyBR } from '../../utils/dateBR';
 export function useDashboardData(supabase, userId, showToast, options = {}) {
   const normDay = (v) => {
     if (!v) return '';
-    if (typeof v === 'string') return v.slice(0, 10);
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const d = new Date(s);
+      if (!Number.isNaN(d.getTime())) return toDayKeyBR(d);
+      return s.slice(0, 10);
+    }
     const d = new Date(v);
     if (!Number.isNaN(d.getTime())) return toDayKeyBR(d);
     return String(v).slice(0, 10);
@@ -37,6 +43,7 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
     lowStock: 0,
     stockValue: null,
     expenses: 0,
+    purchases: 0,
     cogs: 0,
     netProfit: 0,
     stockInvested: 0,
@@ -52,6 +59,11 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
   const [purchasesRows, setPurchasesRows] = useState([]); // entradas de estoque no período
   const [trend, setTrend] = useState({ revenue: null, orders: null, items: null, avgTicket: null });
   const cacheRef = useRef(new Map());
+  const inDayRange = (dateLike) => {
+    const k = toDayKeyBR(dateLike);
+    if (!k) return false;
+    return k >= rangeFrom && k <= rangeTo;
+  };
 
   const setPreset = (preset) => {
     const now = new Date();
@@ -76,22 +88,21 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
     setRangeTo(now.toISOString().slice(0,10));
   };
 
-  const key = useMemo(()=>`${rangeFrom}:${rangeTo}`,[rangeFrom, rangeTo]);
+  const key = useMemo(()=>`${String(userId)}:${options?.demo ? 'demo' : 'live'}:${rangeFrom}:${rangeTo}`,[userId, options?.demo, rangeFrom, rangeTo]);
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async (force = false) => {
     if (!userId) return;
+    if (force) {
+      cacheRef.current.delete(key);
+    }
     if (options?.demo || userId === 'demo') {
       setLoading(true); setError('');
       try {
         const products = demoApi.listProducts();
         const salesAll = demoApi.listSales();
         const expensesAll = demoApi.listExpenses({ from: rangeFrom, to: rangeTo });
-        const fromTs = new Date(rangeFrom).getTime();
-        const toTs = new Date(`${rangeTo}T23:59:59.999Z`).getTime();
         const sales = salesAll.filter(s => {
-          const d = new Date(s.sale_date || s.date || s.created_at);
-          const t = d.getTime();
-          return !Number.isNaN(t) && t >= fromTs && t <= toTs;
+          return inDayRange(s.sale_date || s.date || s.created_at);
         });
 
         const revenue = sales.reduce((a, s) => a + Number(s.total_price ?? s.total ?? 0), 0);
@@ -165,6 +176,7 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
           lowStock: lowRows.length,
           stockValue: stockInvested,
           expenses,
+          purchases: 0,
           cogs,
           netProfit,
           stockInvested,
@@ -180,7 +192,7 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
         setRecent(recentRows);
         setExpensesRows(expensesAll);
         setTrend({ revenue: null, orders: null, items: null, avgTicket: null });
-        cacheRef.current.set(key, { summary: sum, daily: dailyRows, financeDaily: financeRows, top: topRows, lowStock: lowRows, recent: recentRows, expensesRows: expensesAll, trend: { revenue: null, orders: null, items: null, avgTicket: null } });
+        cacheRef.current.set(key, { summary: sum, daily: dailyRows, financeDaily: financeRows, top: topRows, lowStock: lowRows, recent: recentRows, expensesRows: expensesAll, purchasesRows: [], trend: { revenue: null, orders: null, items: null, avgTicket: null } });
       } catch (e) {
         setError(e?.message || 'Falha ao carregar dados');
         showToast?.('Erro ao carregar dashboard', 'danger');
@@ -190,7 +202,7 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
       return;
     }
     const cached = cacheRef.current.get(key);
-    if (cached) {
+    if (cached && !force) {
       setSummary(cached.summary);
       setDaily(cached.daily);
       setFinanceDaily(cached.financeDaily || []);
@@ -198,6 +210,8 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
       setLowStock(cached.lowStock);
       setRecent(cached.recent);
       setExpensesRows(cached.expensesRows || []);
+      setPurchasesRows(cached.purchasesRows || []);
+      setTrend(cached.trend || { revenue: null, orders: null, items: null, avgTicket: null });
       return;
     }
     setLoading(true); setError('');
@@ -270,47 +284,37 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
         .limit(5000);
 
       let expData = [];
-      try {
-        const { data: eData } = await supabase
+      {
+        const { data: eData, error: eErr } = await supabase
           .from('expenses')
           .select('amount,date,category,description')
           .eq('user_id', userId)
           .gte('date', rangeFrom)
           .lte('date', rangeTo)
           .limit(5000);
-        if (Array.isArray(eData)) expData = eData;
-      } catch {}
+        if (!eErr && Array.isArray(eData)) expData = eData;
+      }
       setExpensesRows(expData);
       // Entradas (compras de mercadoria)
       let entData = [];
-      try {
-        const { data: mData } = await supabase
+      {
+        const { data: mData, error: mErr } = await supabase
           .from('stock_movements')
           .select('product_id,quantity,cost_unit,occurred_at,created_at')
           .eq('user_id', userId)
           .eq('type', 'entrada')
           .order('created_at', { ascending: false })
           .limit(5000);
-        if (Array.isArray(mData)) {
-          const fromTs = new Date(rangeFrom).getTime();
-          const toTs = new Date(`${rangeTo}T23:59:59.999Z`).getTime();
-          entData = mData.filter(m => {
-            const d = new Date(m.occurred_at || m.created_at);
-            const t = d.getTime();
-            return !Number.isNaN(t) && t >= fromTs && t <= toTs;
-          });
+        if (!mErr && Array.isArray(mData)) {
+          entData = mData.filter(m => inDayRange(m.occurred_at || m.created_at));
         }
-      } catch {}
+      }
       setPurchasesRows(entData);
 
       const productsAll = Array.isArray(prodsAll) ? prodsAll : [];
       const byId = new Map(productsAll.map(p => [String(p.id), p]));
-      const fromTs = new Date(rangeFrom).getTime();
-      const toTs = new Date(`${rangeTo}T23:59:59.999Z`).getTime();
       const srows = (Array.isArray(salesAll) ? salesAll : []).filter(s => {
-        const d = new Date(s.sale_date || s.date || s.created_at);
-        const t = d.getTime();
-        return !Number.isNaN(t) && t >= fromTs && t <= toTs;
+        return inDayRange(s.sale_date || s.date || s.created_at);
       });
       const cogs = srows.reduce((a, s) => {
         const qty = Number(s.quantity || s.items || 1);
@@ -318,7 +322,13 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
         return a + cost;
       }, 0);
       const expenses = expData.reduce((a, e) => a + Number(e.amount || 0), 0);
-      const purchases = entData.reduce((a, m) => a + (Number(m.quantity || 0) * Number(m.cost_unit || 0)), 0);
+      const purchases = entData.reduce((a, m) => {
+        const qty = Number(m.quantity || 0);
+        const fromRow = Number(m.cost_unit || 0);
+        const fallback = Number(byId.get(String(m.product_id))?.cost_price || 0);
+        const unit = fromRow > 0 ? fromRow : fallback;
+        return a + (qty * unit);
+      }, 0);
       const stockInvested = productsAll.reduce((a, p) => a + Number(p.cost_price || 0) * Number(p.quantity || 0), 0);
       const stockPotential = productsAll.reduce((a, p) => a + Number(p.sale_price || 0) * Number(p.quantity || 0), 0);
       const grossProfit = sum.revenue - cogs;
@@ -342,8 +352,12 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
       });
       const purchByDay = {};
       entData.forEach(m => {
-        const k = normDay(m.occurred_at);
-        purchByDay[k] = (purchByDay[k] || 0) + (Number(m.quantity || 0) * Number(m.cost_unit || 0));
+        const k = normDay(m.occurred_at || m.created_at);
+        const qty = Number(m.quantity || 0);
+        const fromRow = Number(m.cost_unit || 0);
+        const fallback = Number(byId.get(String(m.product_id))?.cost_price || 0);
+        const unit = fromRow > 0 ? fromRow : fallback;
+        purchByDay[k] = (purchByDay[k] || 0) + (qty * unit);
       });
       const cogsByDay = {};
       srows.forEach(s => {
@@ -397,7 +411,7 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
       setLowStock(lowRows);
       setRecent(recentRows);
       setTrend(t);
-      cacheRef.current.set(key, { summary: sum, daily: dailyRows, financeDaily: financeRows, top: topRows, lowStock: lowRows, recent: recentRows, expensesRows: expData, trend: t });
+      cacheRef.current.set(key, { summary: sum, daily: dailyRows, financeDaily: financeRows, top: topRows, lowStock: lowRows, recent: recentRows, expensesRows: expData, purchasesRows: entData, trend: t });
     } catch (e) {
       const msg = e?.message || '';
       const code = String(e?.code || '');
@@ -419,16 +433,12 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
             .limit(5000);
           const products = Array.isArray(prods) ? prods : [];
           // Filtra por período usando sale_date || date || created_at
-          const fromTs = new Date(rangeFrom).getTime();
-          const toTs = new Date(`${rangeTo}T23:59:59.999Z`).getTime();
           const allSales = Array.isArray(sales) ? sales : [];
           const srows = allSales.filter(s => {
-            const d = new Date(s.sale_date || s.date || s.created_at);
-            const t = d.getTime();
-            return !Number.isNaN(t) && t >= fromTs && t <= toTs;
+            return inDayRange(s.sale_date || s.date || s.created_at);
           });
           const revenue = srows.reduce((a,b)=>a+Number((b.total_price ?? b.total) || 0),0);
-          const orders = srows.length;
+          const orders = srows.length ? new Set(srows.map(s => String(s.sale_date || s.date || s.created_at || ''))).size : 0;
           const items = srows.reduce((a,b)=>a+Number(b.quantity||b.items||1),0);
           const avgTicket = orders ? revenue/orders : 0;
           const stockValue = products.reduce((a,p)=>a + Number(p.cost_price||0)*Number(p.quantity||0), 0);
@@ -447,6 +457,27 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
           } catch {}
           const expenses = expRows.reduce((a,e)=>a+Number(e.amount||0),0);
           setExpensesRows(expRows);
+          let entRows = [];
+          try {
+            const { data: mData } = await supabase
+              .from('stock_movements')
+              .select('product_id,quantity,cost_unit,occurred_at,created_at')
+              .eq('user_id', userId)
+              .eq('type', 'entrada')
+              .limit(5000);
+            if (Array.isArray(mData)) {
+              entRows = mData.filter(m => inDayRange(m.occurred_at || m.created_at));
+            }
+          } catch {}
+          setPurchasesRows(entRows);
+          const byId = new Map((products || []).map(p => [String(p.id), p]));
+          const purchases = entRows.reduce((a, m) => {
+            const qty = Number(m.quantity || 0);
+            const fromRow = Number(m.cost_unit || 0);
+            const fallback = Number(byId.get(String(m.product_id))?.cost_price || 0);
+            const unit = fromRow > 0 ? fromRow : fallback;
+            return a + (qty * unit);
+          }, 0);
           const cogs = srows.reduce((a,s)=>{
             const qty = Number(s.quantity||s.items||1);
             const cost = (s.cost_total != null) ? Number(s.cost_total||0) : (Number(products.find(p=>String(p.id)===String(s.product_id))?.cost_price||0) * qty);
@@ -457,22 +488,20 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
           const netProfit = revenue - cogs - expenses;
           const byDay = {};
           srows.forEach(s=>{
-            const k = new Date(s.sale_date || s.date || s.created_at).toISOString().slice(0,10);
+            const k = normDay(s.sale_date || s.date || s.created_at);
             byDay[k] = (byDay[k]||{ total:0, items:0 });
             byDay[k].total += Number((s.total_price ?? s.total) || 0);
             byDay[k].items += Number(s.quantity||s.items||1);
           });
           const dailyRows = [];
-          const start = new Date(rangeFrom); const end = new Date(rangeTo);
-          for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
-            const k = d.toISOString().slice(0,10);
-            dailyRows.push({ day:k, total: byDay[k]?.total||0, items: byDay[k]?.items||0 });
-          }
+          dateIter(rangeFrom, rangeTo).forEach(k => {
+            dailyRows.push({ day: k, total: byDay[k]?.total||0, items: byDay[k]?.items||0 });
+          });
           const expByDay = {};
           expRows.forEach(e=>{ const k = String(e.date||'').slice(0,10); expByDay[k] = (expByDay[k]||0) + Number(e.amount||0); });
           const cogsByDay = {};
           srows.forEach(s=>{
-            const k = new Date(s.sale_date || s.date || s.created_at).toISOString().slice(0,10);
+            const k = normDay(s.sale_date || s.date || s.created_at);
             const qty = Number(s.quantity||s.items||1);
             const cost = (s.cost_total != null) ? Number(s.cost_total||0) : (Number(products.find(p=>String(p.id)===String(s.product_id))?.cost_price||0) * qty);
             cogsByDay[k] = (cogsByDay[k]||0) + cost;
@@ -481,7 +510,16 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
             const rev = Number(r.total||0);
             const ex = Number(expByDay[r.day]||0);
             const cg = Number(cogsByDay[r.day]||0);
-            return { day: r.day, revenue: rev, expenses: ex, profit: rev - cg - ex };
+            const purch = entRows.reduce((acc, m) => {
+              const k = normDay(m.occurred_at || m.created_at);
+              if (k !== r.day) return acc;
+              const qty = Number(m.quantity || 0);
+              const fromRow = Number(m.cost_unit || 0);
+              const fallback = Number(byId.get(String(m.product_id))?.cost_price || 0);
+              const unit = fromRow > 0 ? fromRow : fallback;
+              return acc + (qty * unit);
+            }, 0);
+            return { day: r.day, revenue: rev, expenses: ex, purchases: purch, profit: rev - cg - ex };
           });
           const topMap = new Map();
           srows.forEach(s=>{
@@ -516,6 +554,7 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
             lowStock: lowRows.length,
             stockValue,
             expenses,
+            purchases,
             cogs,
             netProfit,
             stockInvested: stockValue,
@@ -523,7 +562,7 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
             grossMarginPct
           };
           setSummary(sum); setDaily(dailyRows); setFinanceDaily(financeRows); setTop(topRows); setLowStock(lowRows); setRecent(recentRows); setTrend({ revenue:null, orders:null, items:null, avgTicket:null });
-          cacheRef.current.set(key, { summary: sum, daily: dailyRows, financeDaily: financeRows, top: topRows, lowStock: lowRows, recent: recentRows, expensesRows: expRows, trend: { revenue:null, orders:null, items:null, avgTicket:null } });
+          cacheRef.current.set(key, { summary: sum, daily: dailyRows, financeDaily: financeRows, top: topRows, lowStock: lowRows, recent: recentRows, expensesRows: expRows, purchasesRows: entRows, trend: { revenue:null, orders:null, items:null, avgTicket:null } });
         } catch (fe) {
           setError(fe?.message || 'Falha ao carregar dados');
           showToast?.('Erro ao carregar dashboard', 'danger');
@@ -541,7 +580,12 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
 
   // Exports
   const exportCsv = (type) => {
-    const buildCsv = (rows, headers) => [headers.join(';'), ...rows.map(r=>r.join(';'))].join('\n');
+    const cell = (v) => {
+      const s = String(v ?? '');
+      if (/[;\n\r"]/.test(s)) return `"${s.replaceAll('"', '""')}"`;
+      return s;
+    };
+    const buildCsv = (rows, headers) => [headers.map(cell).join(';'), ...rows.map(r=>r.map(cell).join(';'))].join('\n');
     let filename = 'relatorio.csv'; let csv = '';
     if (type === 'vendas') {
       filename = `vendas_${rangeFrom}_${rangeTo}.csv`;
@@ -555,6 +599,9 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
     } else if (type === 'despesas') {
       filename = `despesas_${rangeFrom}_${rangeTo}.csv`;
       csv = buildCsv(expensesRows.map(r=>[String(r.date).slice(0,10), r.description || '', r.category || '', String(r.amount || 0).replace('.',',')]), ['data','descricao','categoria','valor']);
+    } else if (type === 'compras') {
+      filename = `compras_${rangeFrom}_${rangeTo}.csv`;
+      csv = buildCsv(purchasesRows.map(r=>[String((r.occurred_at || r.created_at) || '').slice(0,10), r.product_id || '', r.quantity || 0, String(r.cost_unit || 0).replace('.',','), String((Number(r.quantity || 0) * Number(r.cost_unit || 0)) || 0).replace('.',',')]), ['data','produto_id','qtd','custo_unit','total']);
     }
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();

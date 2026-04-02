@@ -20,7 +20,7 @@ export default function DashboardPanel({ userId, demo, formatCurrency, showToast
   const adjustQty = (p) => onAdjustQuantity?.(p);
 
   useEffect(() => {
-    const handler = () => loadDashboard();
+    const handler = () => loadDashboard(true);
     window.addEventListener('dashboard:refresh', handler);
     return () => window.removeEventListener('dashboard:refresh', handler);
   }, [loadDashboard]);
@@ -73,7 +73,7 @@ export default function DashboardPanel({ userId, demo, formatCurrency, showToast
         ${sub(`Período: ${rangeFrom.split('-').reverse().join('/')} a ${rangeTo.split('-').reverse().join('/')}`)}
         <div class="grid">
           <div>${kv('Receita', fmt(summary.revenue))}${kv('Itens vendidos', summary.items)}${kv('Ticket médio', fmt(summary.avgTicket))}</div>
-          <div>${kv('Despesas', fmt(summary.expenses))}${kv('Lucro líquido', fmt(summary.netProfit))}${kv('Estoque (custo)', fmt(summary.stockInvested))}</div>
+          <div>${kv('Despesas', fmt(summary.expenses))}${kv('Compras', fmt(summary.purchases))}${kv('Lucro líquido', fmt(summary.netProfit))}${kv('Estoque (custo)', fmt(summary.stockInvested))}</div>
         </div>
         <div class="card">
           ${h('Vendas por dia')}${table(['Dia','Receita','Itens'], dailyRows)}
@@ -132,10 +132,11 @@ export default function DashboardPanel({ userId, demo, formatCurrency, showToast
                   <button className="export-item" role="menuitem" onClick={()=>{ exportCsv('top'); setExportOpen(false); }}>CSV Top</button>
                   <button className="export-item" role="menuitem" onClick={()=>{ exportCsv('low'); setExportOpen(false); }}>CSV Baixo estoque</button>
                   <button className="export-item" role="menuitem" onClick={()=>{ exportCsv('despesas'); setExportOpen(false); }}>CSV Despesas</button>
+                  <button className="export-item" role="menuitem" onClick={()=>{ exportCsv('compras'); setExportOpen(false); }}>CSV Compras</button>
                 </div>
               )}
             </div>
-            <button className="btn-outline" onClick={loadDashboard} disabled={loading}>{loading?'Atualizando...':'Atualizar'}</button>
+            <button className="btn-outline" onClick={()=>loadDashboard(true)} disabled={loading}>{loading?'Atualizando...':'Atualizar'}</button>
             <button className="btn-outline" onClick={printAudit}>Imprimir auditoria</button>
           </div>
         </div>

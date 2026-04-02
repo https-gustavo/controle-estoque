@@ -55,6 +55,12 @@ export default function DashboardSidebar({
               <span>Despesas</span>
             </a>
           </li>
+          <li className="nav-item">
+            <a href="#" className={`nav-link ${activeTab === 'precificacao' ? 'active' : ''}`} onClick={(e)=>{e.preventDefault(); onChange('precificacao'); onMobileClick();}}>
+              <span className="nav-icon"><i className="fas fa-percent"></i></span>
+              <span>Precificação</span>
+            </a>
+          </li>
           <li className="nav-section">Sistema</li>
           <li className="nav-item">
             <a href="#" className={`nav-link ${activeTab === 'historico' ? 'active' : ''}`} onClick={(e)=>{e.preventDefault(); onChange('historico'); onMobileClick();}}>

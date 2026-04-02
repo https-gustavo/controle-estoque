@@ -1,4 +1,5 @@
 import { demoGetExpenses, demoGetProducts, demoGetSales, demoId, demoSetExpenses, demoSetProducts, demoSetSales } from './demoStore';
+import { applyRatio, computeDiscountRatio } from '../utils/finance';
 
 export const demoApi = {
   listProducts() {
@@ -51,10 +52,10 @@ export const demoApi = {
     let subtotal = 0;
     items.forEach(it => { subtotal += Number(it.unit_price || 0) * Number(it.quantity || 1); });
     const total = Math.max(0, subtotal - Number(discountValue || 0));
-    const ratio = subtotal > 0 ? (total / subtotal) : 1;
+    const ratio = computeDiscountRatio(subtotal, total);
     items.forEach(it => {
       const qty = Number(it.quantity || 1);
-      const revenue = (Number(it.unit_price || 0) * qty) * ratio;
+      const revenue = applyRatio((Number(it.unit_price || 0) * qty), ratio);
       const p = byBarcode.get(String(it.barcode || '')) || products.find(pr => String(pr.id) === String(it.id));
       const costUnit = Number(p?.cost_price || 0);
       const costTotal = costUnit * qty;
@@ -124,4 +125,3 @@ export const demoApi = {
     demoSetExpenses(list.filter(e => String(e.id) !== String(id)));
   }
 };
-

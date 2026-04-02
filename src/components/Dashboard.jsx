@@ -12,9 +12,11 @@ import SalesPanel from './dashboard/SalesPanel';
 import ExpensesPanel from './dashboard/ExpensesPanel';
 import SettingsPanel from './dashboard/SettingsPanel';
 import DashboardPanel from './dashboard/DashboardPanel';
+import PricingPanel from './dashboard/PricingPanel';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { demoApi } from '../demo/demoApi';
 import { printReceipt } from '../utils/printReceipt';
+import { applyRatio, computeDiscountRatio } from '../utils/finance';
 import '../styles/Dashboard.css';
 
 export default function Dashboard({ setUser, demo, onExitDemo }) {
@@ -22,7 +24,7 @@ export default function Dashboard({ setUser, demo, onExitDemo }) {
   const [userId, setUserId] = useState(null);
   const [activeTab, setActiveTab] = useState(() => {
     try { return localStorage.getItem('activeTab') || 'dashboard'; } catch { return 'dashboard'; }
-  }); // dashboard | produtos | entrada | vendas | historico | api | custos
+  }); // dashboard | produtos | entrada | vendas | historico | api | custos | precificacao
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [toast, setToast] = useState(null);
@@ -130,14 +132,18 @@ export default function Dashboard({ setUser, demo, onExitDemo }) {
     setConfirmBusy(true);
     try {
       const now = new Date().toISOString();
+      const ratio = computeDiscountRatio(cartSubtotal, cartTotal);
       // monta linhas: 1 linha por item (duas variações de schema)
       const rowsMinimal = salesCart.map(item => {
         const p = products.find(pr => String(pr.id) === String(item.id) || (item.barcode && pr.barcode === item.barcode));
+        const qty = Number(item.quantity || 1);
+        const unit = Number(item.unit_price || 0);
+        const revenue = applyRatio(unit * qty, ratio);
         return {
           user_id: userId,
           product_id: p?.id ?? null,
           date: now,
-          total: Number(item.unit_price || 0) * Number(item.quantity || 1)
+          total: revenue
         };
       });
       const rowsDetailed = salesCart.map(item => {
@@ -145,7 +151,7 @@ export default function Dashboard({ setUser, demo, onExitDemo }) {
         const p = products.find(pr => String(pr.id) === String(item.id) || (item.barcode && pr.barcode === item.barcode));
         const qty = Number(item.quantity || 1);
         const unit = Number(item.unit_price || 0);
-        const revenue = unit * qty;
+        const revenue = applyRatio(unit * qty, ratio);
         const costUnit = Number(p?.cost_price || 0);
         const costTotal = costUnit * qty;
         return {
@@ -657,6 +663,15 @@ export default function Dashboard({ setUser, demo, onExitDemo }) {
 
           {activeTab === 'custos' && (
             <ExpensesPanel demo={isDemo} userId={userId} formatCurrency={formatCurrency} showToast={showToast} />
+          )}
+
+          {activeTab === 'precificacao' && (
+            <PricingPanel
+              products={products}
+              formatCurrency={formatCurrency}
+              onUpdate={handleUpdateProduct}
+              showToast={showToast}
+            />
           )}
 
           {activeTab === 'configuracoes' && (
