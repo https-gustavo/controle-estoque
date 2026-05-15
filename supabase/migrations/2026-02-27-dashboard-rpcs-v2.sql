@@ -22,7 +22,7 @@ as $$
   with s as (
     select
       coalesce(sum(coalesce(total_price, total)), 0) as revenue,
-      count(*) as orders,
+      count(distinct coalesce(sale_date::timestamptz, date::timestamptz, created_at)) as orders,
       coalesce(sum(coalesce(quantity, 1)), 0) as items
     from sales
     where user_id = p_user_id
@@ -95,7 +95,8 @@ as $$
     select
       s.product_id,
       coalesce(sum(coalesce(s.quantity, 1)), count(*))::int as qty,
-      coalesce(sum(coalesce(s.total_price, s.total)), 0) as revenue
+      coalesce(sum(coalesce(s.total_price, s.total)), 0) as revenue,
+      coalesce(sum(coalesce(s.cost_total, 0)), 0) as total_cost
     from sales s
     where s.user_id = p_user_id
       and coalesce(s.sale_date::timestamptz, s.date::timestamptz, s.created_at) >= from_date
@@ -109,7 +110,7 @@ as $$
     p.barcode,
     b.qty,
     b.revenue,
-    null::numeric as margin
+    case when b.revenue > 0 then ((b.revenue - b.total_cost) / b.revenue) * 100 else 0 end as margin
   from base b
   left join products p
     on p.id = b.product_id and p.user_id = p_user_id

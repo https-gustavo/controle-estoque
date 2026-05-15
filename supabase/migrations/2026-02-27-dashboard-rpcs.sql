@@ -24,7 +24,7 @@ as $$
   with s as (
     select
       coalesce(sum(total), 0) as revenue,
-      count(*) as orders
+      count(distinct date) as orders
     from sales
     where user_id = p_user_id
       and date >= from_date

@@ -1,0 +1,278 @@
+CONTROLE DE ESTOQUE E FINANCEIRO — DOCUMENTAÇÃO (FACULDADE)
+
+1) VISÃO GERAL DO SISTEMA
+Este projeto é um sistema web de controle de estoque com módulo financeiro integrado. Ele permite:
+- Cadastro e gestão de produtos (nome, código de barras, categoria, custo, venda e quantidade).
+- Entrada de estoque (compra de mercadoria) em lote, com registro de movimentos e atualização do custo.
+- Registro de vendas com carrinho, desconto (R$ ou %) e impressão de comprovante.
+- Controle de despesas.
+- Dashboard com indicadores e gráfico diário (receita, despesas, compras e lucro).
+- Histórico de operações (vendas e entradas).
+- Módulo de API para integrações externas (geração de chaves e endpoints).
+
+Arquitetura resumida:
+- Frontend: React + Vite (SPA).
+- Banco/Autenticação: Supabase (Postgres + Auth + RLS).
+- API adicional (REST): Node/Express consumindo o Supabase como banco e usando API Keys.
+
+
+2) TABELAS E DADOS IMPORTANTES (SUPABASE)
+As principais tabelas usadas no banco (Supabase/Postgres) são:
+
+2.1) products
+- Guarda produtos do usuário:
+  id, user_id, name, barcode, category, quantity, cost_price, sale_price, margin (quando existir), created_at, updated_at.
+- quantity representa o estoque atual.
+- cost_price representa o custo unitário usado para CMV (custo total) e cálculo de lucro.
+- sale_price é o preço de venda usado no carrinho de vendas.
+
+2.2) sales
+- Guarda itens de venda (uma venda pode ter vários itens, um por linha):
+  user_id, product_id, quantity, unit_price, total_price (ou total, no legado), cost_total (quando existir), profit (quando existir), sale_date (ou date/created_at).
+- O sistema salva o total já com desconto rateado por item.
+- O sistema salva o custo total (cost_total) e lucro por item (profit) quando as colunas existem.
+
+2.3) expenses
+- Guarda despesas:
+  user_id, description, amount, category, date, recurring, created_at.
+
+2.4) stock_movements
+- Guarda movimentos de estoque:
+  user_id, product_id, type ('entrada' ou 'saida'), quantity, cost_unit, occurred_at, created_at, batch_id.
+- Entrada: compra/recebimento de mercadoria (aumenta estoque).
+- Saída: venda (reduz estoque).
+- batch_id permite agrupar uma “entrada em lote” com vários itens como um único evento no histórico.
+
+2.5) api_keys
+- Guarda chaves de API de integrações externas:
+  user_id, name, key_hash, revoked, expires_at, last_used_at, created_at.
+- A chave “plaintext” só aparece uma vez na criação. No banco é salvo apenas o hash (sha256).
+
+
+3) COMO O SISTEMA FUNCIONA (FLUXO COMPLETO)
+
+3.1) Login/Cadastro
+- O usuário cria conta e faz login usando Supabase Auth.
+- Após autenticado, todas as consultas e alterações no banco usam user_id e respeitam RLS (Row Level Security), garantindo que cada usuário veja apenas os próprios dados.
+
+3.2) Produtos (Estoque)
+Funcionalidades:
+- Criar, listar, pesquisar, filtrar e ordenar produtos.
+- Editar produto (nome, código, custo, venda, categoria).
+- Mostrar margem de lucro na tabela (margem sobre o preço de venda).
+
+Fórmulas:
+- Margem (%) sobre venda:
+  margem = ((venda - custo) / venda) * 100
+  (se venda <= 0, margem não é exibida).
+
+3.3) Entrada de Estoque (Compra de Mercadoria)
+Objetivo:
+- Registrar compras/entradas em lote e atualizar estoque.
+
+Como funciona:
+- O usuário monta uma lista de itens (produto, quantidade e custo unitário da entrada).
+- Ao confirmar:
+  - Se o produto já existe: soma a quantidade ao estoque atual.
+  - Atualiza o custo do produto por média ponderada:
+    custo_médio = ((custo_antigo * qtd_antiga) + (custo_entrada * qtd_entrada)) / (qtd_antiga + qtd_entrada)
+  - Registra um movimento em stock_movements com:
+    type='entrada', quantity, cost_unit, occurred_at e batch_id (mesmo batch_id para todos os itens confirmados).
+
+Observação (manter margem):
+- Se o usuário não informar o preço de venda na entrada e existir uma margem configurada/estimada, o sistema pode ajustar automaticamente o preço de venda para manter a margem ao atualizar o custo.
+
+3.4) Vendas (Carrinho + Desconto)
+Objetivo:
+- Registrar venda e dar baixa no estoque.
+
+Como funciona:
+- O usuário adiciona itens no carrinho (com quantidade).
+- Pode aplicar desconto em:
+  - Valor (R$), ou
+  - Percentual (%), calculado sobre o subtotal.
+- O total final da venda é:
+  subtotal = Σ(unit_price * qty)
+  desconto = min(desconto_digitado, subtotal)
+  total = subtotal - desconto
+
+Persistência (ponto crítico de consistência):
+- Ao salvar a venda no banco, o sistema rateia o total final (após desconto) entre os itens do carrinho:
+  - O rateio é proporcional ao subtotal de cada item.
+  - O rateio é feito em centavos para garantir que a soma final bata exatamente com o total (evita diferença por arredondamento).
+- Para cada item salvo:
+  total_price = valor rateado do item (já com desconto embutido)
+  cost_total = cost_price_do_produto * qty
+  profit = total_price - cost_total
+
+Atualização de estoque:
+- Após salvar a venda, o sistema reduz a quantidade do produto:
+  novo_estoque = max(0, estoque_atual - qty)
+- Também registra movimento de saída no stock_movements:
+  type='saida', quantity e cost_unit (custo do produto no momento).
+
+Comprovante:
+- Pode imprimir comprovante após registrar. O comprovante mostra subtotal, desconto e total.
+
+3.5) Despesas
+Objetivo:
+- Registrar despesas operacionais separadas de compras.
+
+Como funciona:
+- O usuário cadastra descrição, valor, categoria e data.
+- Despesas entram no cálculo do lucro líquido do dashboard.
+
+3.6) Dashboard (Financeiro e Indicadores)
+Objetivo:
+- Consolidar dados em indicadores e gráficos, por período.
+
+Principais indicadores e fórmulas:
+- Receita (revenue): soma de total_price (ou total legado) das vendas no período.
+- CMV/COGS (cogs): soma de cost_total (quando existe). Se não existir, pode usar cost_price * qty como fallback.
+- Despesas (expenses): soma de expenses.amount no período.
+- Compras (purchases): soma das entradas do stock_movements:
+  purchases = Σ(quantity * cost_unit) para type='entrada'
+  Se cost_unit estiver ausente/0, o sistema pode usar cost_price do produto como fallback.
+- Lucro (profit) diário e consolidado:
+  profit = revenue - cogs - expenses
+
+Regra importante:
+- Compras/entradas NÃO entram como despesa e NÃO reduzem o lucro diretamente.
+  Elas aparecem separadas como “Compras”, pois representam investimento em estoque.
+
+Gráfico:
+- Exibe linhas separadas por dia: Receita, Despesas, Compras e Lucro.
+
+3.7) Histórico
+Objetivo:
+- Visualizar operações registradas.
+
+Como funciona:
+- Aba “Vendas”: agrupa itens por data/hora (e exibe total do grupo).
+- Aba “Entradas”: lista entradas de stock_movements e agrupa por batch_id (quando existe), mostrando todos os itens do lote.
+- Permite visualizar detalhes da venda, editar quantidades/valores e registrar devolução (estorno) quando necessário.
+
+
+4) LEITOR DE CÓDIGO DE BARRAS (COMO FUNCIONA)
+O sistema suporta leitores de código de barras que funcionam como “teclado” (keyboard wedge), ou seja:
+- O leitor “digita” os caracteres rapidamente e geralmente finaliza com Enter (ou Tab).
+
+Lógica de detecção:
+- O sistema escuta eventos de teclado globais.
+- Vai acumulando os caracteres em um buffer.
+- Quando recebe Enter/Tab, ele valida:
+  - Se o código tem um tamanho mínimo (ex.: 6 caracteres).
+  - Se a digitação foi “rápida”, medindo o atraso médio entre teclas (ex.: <= 50ms).
+  - Se passar, considera como leitura do leitor e dispara o evento de leitura.
+
+Integração com as telas:
+- Na aba “Vendas”: ao ler um código, procura o produto pelo barcode e adiciona ao carrinho.
+- Na aba “Entrada”: envia o código para o formulário de entrada preencher/selecionar o produto automaticamente.
+
+Benefício:
+- Reduz erro manual e acelera cadastro/registro de vendas e entradas.
+
+
+5) API (INTEGRAÇÕES) — FUNCIONALIDADES
+O projeto possui duas formas de integração via API:
+
+5.1) API via Supabase (RPC com API Key)
+Objetivo:
+- Permitir que sistemas externos consultem dados do usuário usando uma chave gerenciada pelo próprio sistema.
+
+Como é a autenticação:
+- O sistema gera uma chave (plaintext) e salva apenas o hash no banco (sha256).
+- Ao receber uma chave, uma função resolve o user_id dono da chave:
+  - Se a chave estiver revogada ou expirada, a API rejeita.
+  - Atualiza last_used_at para auditoria/controle.
+
+Principais funções RPC:
+- api_products(p_api_key): lista produtos do dono da chave.
+- api_sales(p_api_key, p_from, p_to): lista vendas no período.
+- api_sales_summary(p_api_key, p_from, p_to): resumo (receita, itens, pedidos, ticket médio).
+- api_sales_daily(p_api_key, p_from, p_to): receita diária (day, total, items).
+- api_product_performance(p_api_key, p_from, p_to): performance por produto (qty, revenue, margin).
+- api_low_stock(p_api_key, threshold): lista produtos com estoque abaixo de um limite.
+
+Como usar:
+- Pode ser usado via REST do Supabase:
+  POST /rest/v1/rpc/<nome_da_funcao>
+  com JSON contendo p_api_key e parâmetros.
+- Ou via supabase-js chamando supabase.rpc(...) (útil para testes no próprio sistema).
+
+5.2) API REST (Node/Express) para Produtos
+Objetivo:
+- Disponibilizar endpoints REST tradicionais para produtos.
+
+Autenticação:
+- Header:
+  Authorization: Bearer <SUA_CHAVE_DE_API>
+- O backend valida a chave consultando o Supabase (api_resolve_user) e injeta req.userId.
+- As consultas sempre filtram por user_id para garantir isolamento de dados.
+
+Endpoints:
+- GET /api/health: healthcheck.
+- GET /api/produtos: lista produtos com paginação, busca e ordenação.
+- GET /api/produtos/:id: busca produto por id.
+- POST /api/produtos: cria produto.
+- PUT /api/produtos/:id: atualiza produto.
+- DELETE /api/produtos/:id: remove produto.
+
+Documentação interativa:
+- Swagger UI em /docs quando o backend está rodando.
+
+
+6) CORREÇÃO NA PRECIFICAÇÃO (O QUE FOI FEITO E POR QUÊ)
+O sistema possui uma parte de “precificação” e regras para manter coerência financeira:
+
+6.1) Precificação (Calculadora)
+- Lucro unitário:
+  lucro = venda - custo
+- Margem sobre venda (%):
+  margem = (lucro / venda) * 100
+- Markup sobre custo (%):
+  markup = (lucro / custo) * 100
+- Sugestão por margem desejada:
+  venda_sugerida = custo / (1 - margem/100)
+- Sugestão por markup desejado:
+  venda_sugerida = custo * (1 + markup/100)
+
+6.2) Consistência do desconto nas vendas (impacto direto em precificação/lucro)
+Problema típico em sistemas:
+- Calcular desconto somente na interface (UI), mas salvar no banco sem aplicar o desconto nos itens.
+Isso distorce:
+- Receita, lucro, dashboard e relatórios.
+
+Correção aplicada:
+- No momento de registrar a venda, o total final (após desconto) é distribuído (rateado) por item.
+- O rateio é proporcional e feito em centavos para não sobrar “diferença” por arredondamento.
+- Assim, o banco fica consistente com o que o usuário viu na tela.
+
+6.3) Manter margem ao alterar custo (controle do usuário)
+- Ao editar um produto, existe a opção “Manter margem ao alterar custo”.
+- Se o custo mudar e o usuário não mexer na venda, o sistema recalcula automaticamente a venda para manter a margem anterior.
+
+
+7) COMO RODAR O SISTEMA (RESUMO)
+Pré-requisitos:
+- Node.js instalado.
+- Projeto Supabase configurado e variáveis de ambiente do Vite preenchidas.
+
+Comandos (na raiz do projeto):
+- npm install
+- npm run dev:full
+
+Acesso:
+- Frontend: http://localhost:5173/
+- Backend REST (Express): http://localhost:8080/ (e Swagger em http://localhost:8080/docs)
+
+
+8) CONCLUSÃO
+O projeto entrega um fluxo completo de estoque e financeiro:
+- Controle de produtos e movimentações (entrada/saída).
+- Vendas com desconto consistente no banco.
+- Dashboard com indicadores coerentes (compras separadas de despesas).
+- Histórico com agrupamento por lote.
+- Leitor de código de barras integrado para acelerar operação.
+- API com chaves por usuário para integrações externas com segurança (hash, expiração e revogação).
+

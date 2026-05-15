@@ -28,7 +28,7 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
         const productsData = demoApi.listProducts();
         const salesWithProducts = salesData.map(sale => {
           const date = sale.sale_date || sale.date || sale.created_at;
-          const total = sale.total_price ?? sale.total ?? sale.totalPrice ?? 0;
+          const total = Number(sale.total_price ?? sale.total ?? sale.totalPrice ?? 0);
           return {
             ...sale,
             date,
@@ -50,7 +50,7 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
           } else if (!acc[key].saleId && sale.id) {
             acc[key].saleId = sale.id;
           }
-          const saleTotal = sale.total || 0;
+          const saleTotal = Number(sale.total ?? 0);
           acc[key].items.push({ ...sale, total: saleTotal });
           acc[key].total += saleTotal;
           return acc;
@@ -99,7 +99,7 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
 
       const salesWithProducts = salesData.map(sale => {
         const date = sale.sale_date || sale.date || sale.created_at;
-        const total = sale.total_price ?? sale.total ?? sale.totalPrice ?? 0;
+        const total = Number(sale.total_price ?? sale.total ?? sale.totalPrice ?? 0);
         return {
           ...sale,
           date,
@@ -129,7 +129,7 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
           acc[dateKey].saleId = sale.id;
         }
         
-        const saleTotal = sale.total || 0;
+        const saleTotal = Number(sale.total ?? 0);
         acc[dateKey].items.push({
           ...sale,
           total: saleTotal
@@ -301,16 +301,29 @@ const SalesHistory = ({ userId, demo, showToast, formatCurrency }) => {
 
   const printSaleGroup = (group) => {
     if (!group) return;
-    const rows = (group.items||[]).map(i=>({
-      name: (i.products?.name && i.products.name.trim()) || (i.product_name || 'Produto'),
-      barcode: i.products?.barcode || i.barcode || '',
-      qty: Number(i.quantity || 1),
-      unit: Number(i.unit_price || 0),
-      total: Number(i.total || 0) || (Number(i.unit_price||0) * Number(i.quantity||1))
-    }));
-    const subtotal = rows.reduce((a,b)=>a+Number(b.total||0),0);
+    const rows = (group.items || []).map(i => {
+      const qty = Number(i.quantity || 1);
+      const unit = Number(i.unit_price || 0);
+      const rawTotal = unit * qty;
+      return {
+        name: (i.products?.name && i.products.name.trim()) || (i.product_name || 'Produto'),
+        barcode: i.products?.barcode || i.barcode || '',
+        qty,
+        unit,
+        total: rawTotal
+      };
+    });
+    const subtotal = rows.reduce((a, b) => a + Number(b.total || 0), 0);
+    const storedTotal = (group.items || []).reduce((a, i) => {
+      const qty = Number(i.quantity || 1);
+      const unit = Number(i.unit_price || 0);
+      const rawTotal = unit * qty;
+      const total = Number(i.total_price ?? i.total ?? rawTotal);
+      return a + total;
+    }, 0);
+    const discount = Math.max(0, subtotal - storedTotal);
     const ts = new Date(group.date);
-    printReceipt({ companyName: 'Tech Estoque', title: 'Comprovante de venda', code: group.saleId ? `ID ${group.saleId}` : (group.key || null), date: ts, items: rows, subtotal, discount: 0, total: subtotal });
+    printReceipt({ companyName: 'Tech Estoque', title: 'Comprovante de venda', code: group.saleId ? `ID ${group.saleId}` : (group.key || null), date: ts, items: rows, subtotal, discount, total: storedTotal });
   };
 
   const editTotals = useMemo(() => {

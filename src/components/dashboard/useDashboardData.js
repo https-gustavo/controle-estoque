@@ -394,8 +394,8 @@ export function useDashboardData(supabase, userId, showToast, options = {}) {
         avgTicket: Number(prevRow?.avg_ticket || 0)
       };
       const pct = (now, old) => {
-        const base = old > 0 ? old : (now > 0 ? now : 1);
-        return ((now - old) / base) * 100;
+        if (old <= 0) return now > 0 ? 100 : 0;
+        return ((now - old) / old) * 100;
       };
       const t = {
         revenue: pct(Number(sRow?.revenue || 0), prev.revenue),

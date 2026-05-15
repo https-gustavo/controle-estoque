@@ -15,3 +15,27 @@ export function applyRatio(value, ratio) {
   return Number(out.toFixed(2));
 }
 
+export function allocateProportionalTotals(values, total) {
+  const vals = Array.isArray(values) ? values : [];
+  const totalCents = Math.max(0, Math.round(Number(total || 0) * 100));
+  if (!vals.length) return [];
+  const cents = vals.map(v => Math.max(0, Math.round(Number(v || 0) * 100)));
+  const sumCents = cents.reduce((a, b) => a + b, 0);
+  if (!(sumCents > 0) || !(totalCents > 0)) return cents.map(() => 0);
+
+  const alloc = cents.map(c => Math.floor((c * totalCents) / sumCents));
+  let diff = totalCents - alloc.reduce((a, b) => a + b, 0);
+  if (!(diff > 0)) return alloc.map(c => c / 100);
+
+  const order = cents
+    .map((c, i) => ({ i, r: (c * totalCents) % sumCents }))
+    .sort((a, b) => b.r - a.r);
+
+  let k = 0;
+  while (diff > 0) {
+    alloc[order[k % order.length].i] += 1;
+    diff -= 1;
+    k += 1;
+  }
+  return alloc.map(c => c / 100);
+}

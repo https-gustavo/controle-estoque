@@ -16,7 +16,7 @@ import PricingPanel from './dashboard/PricingPanel';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 import { demoApi } from '../demo/demoApi';
 import { printReceipt } from '../utils/printReceipt';
-import { applyRatio, computeDiscountRatio } from '../utils/finance';
+import { allocateProportionalTotals } from '../utils/finance';
 import '../styles/Dashboard.css';
 
 export default function Dashboard({ setUser, demo, onExitDemo }) {
@@ -132,28 +132,21 @@ export default function Dashboard({ setUser, demo, onExitDemo }) {
     setConfirmBusy(true);
     try {
       const now = new Date().toISOString();
-      const ratio = computeDiscountRatio(cartSubtotal, cartTotal);
-      // monta linhas: 1 linha por item (duas variações de schema)
-      const rowsMinimal = salesCart.map(item => {
-        const p = products.find(pr => String(pr.id) === String(item.id) || (item.barcode && pr.barcode === item.barcode));
+      const itemSubtotals = salesCart.map((item) => {
         const qty = Number(item.quantity || 1);
         const unit = Number(item.unit_price || 0);
-        const revenue = applyRatio(unit * qty, ratio);
-        return {
-          user_id: userId,
-          product_id: p?.id ?? null,
-          date: now,
-          total: revenue
-        };
+        return unit * qty;
       });
-      const rowsDetailed = salesCart.map(item => {
-        // tenta resolver id do produto pelo estado atual
+      const allocated = allocateProportionalTotals(itemSubtotals, cartTotal);
+      
+      const rowsDetailed = salesCart.map((item, idx) => {
         const p = products.find(pr => String(pr.id) === String(item.id) || (item.barcode && pr.barcode === item.barcode));
         const qty = Number(item.quantity || 1);
         const unit = Number(item.unit_price || 0);
-        const revenue = applyRatio(unit * qty, ratio);
+        const revenue = Number(allocated[idx] || 0);
+
         const costUnit = Number(p?.cost_price || 0);
-        const costTotal = costUnit * qty;
+        const costTotal = Number((costUnit * qty).toFixed(2));
         return {
           user_id: userId,
           product_id: p?.id ?? null,
@@ -163,8 +156,22 @@ export default function Dashboard({ setUser, demo, onExitDemo }) {
           unit_price: unit,
           total_price: revenue,
           cost_total: costTotal,
-          profit: revenue - costTotal,
+          profit: Number((revenue - costTotal).toFixed(2)),
           sale_date: now
+        };
+      });
+
+      const rowsMinimal = salesCart.map((item, idx) => {
+        const p = products.find(pr => String(pr.id) === String(item.id) || (item.barcode && pr.barcode === item.barcode));
+        const qty = Number(item.quantity || 1);
+        const unit = Number(item.unit_price || 0);
+        const revenue = Number(allocated[idx] || 0);
+
+        return {
+          user_id: userId,
+          product_id: p?.id ?? null,
+          date: now,
+          total: revenue
         };
       });
       // Agora que as colunas modernas existem, tenta primeiro (sale_date/total_price/...),

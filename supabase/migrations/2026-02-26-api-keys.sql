@@ -122,8 +122,8 @@ as $$
   select *
   from public.sales
   where user_id = public.api_resolve_user(p_api_key)
-    and "date"::date between p_from and p_to
-  order by "date";
+    and coalesce(sale_date::date, "date"::date, created_at::date) between p_from and p_to
+  order by coalesce(sale_date, "date"::timestamptz, created_at);
 $$;
 
 drop function if exists public.api_sales_summary(p_api_key text, p_from date, p_to date);
@@ -133,12 +133,12 @@ language sql
 security definer
 as $$
   with base as (
-    select coalesce(sum(total),0) as total_revenue,
-           coalesce(sum(quantity),0) as total_items,
-           count(*) as orders
+    select coalesce(sum(coalesce(total_price, total)), 0) as total_revenue,
+           coalesce(sum(coalesce(quantity, 1)), 0) as total_items,
+           count(distinct coalesce(sale_date, "date"::timestamptz, created_at)) as orders
     from public.sales
     where user_id = public.api_resolve_user(p_api_key)
-      and "date"::date between p_from and p_to
+      and coalesce(sale_date::date, "date"::date, created_at::date) between p_from and p_to
   )
   select total_revenue, total_items, orders,
          case when orders > 0 then total_revenue/orders else 0 end as avg_ticket
@@ -151,31 +151,40 @@ returns table(day date, total numeric, items numeric)
 language sql
 security definer
 as $$
-  select s."date"::date as day,
-         coalesce(sum(s.total),0) as total,
-         coalesce(sum(s.quantity),0) as items
+  select coalesce(s.sale_date::date, s."date"::date, s.created_at::date) as day,
+         coalesce(sum(coalesce(s.total_price, s.total)), 0) as total,
+         coalesce(sum(coalesce(s.quantity, 1)), 0) as items
   from public.sales s
   where s.user_id = public.api_resolve_user(p_api_key)
-    and s."date"::date between p_from and p_to
-  group by s."date"::date
+    and coalesce(s.sale_date::date, s."date"::date, s.created_at::date) between p_from and p_to
+  group by 1
   order by day;
 $$;
 
 drop function if exists public.api_product_performance(p_api_key text, p_from date, p_to date);
 create or replace function public.api_product_performance(p_api_key text, p_from date, p_to date)
-returns table(product_id integer, name text, barcode text, qty numeric, revenue numeric)
+returns table(product_id integer, name text, barcode text, qty numeric, revenue numeric, margin numeric)
 language sql
 security definer
 as $$
+  with s_base as (
+    select product_id,
+           coalesce(sum(coalesce(quantity, 1)), 0) as qty,
+           coalesce(sum(coalesce(total_price, total)), 0) as revenue,
+           coalesce(sum(coalesce(cost_total, 0)), 0) as total_cost
+    from public.sales
+    where user_id = public.api_resolve_user(p_api_key)
+      and coalesce(sale_date::date, "date"::date, created_at::date) between p_from and p_to
+    group by product_id
+  )
   select p.id, p.name, p.barcode,
-         coalesce(sum(s.quantity),0) as qty,
-         coalesce(sum(s.total),0) as revenue
+         coalesce(s.qty, 0) as qty,
+         coalesce(s.revenue, 0) as revenue,
+         case when coalesce(s.revenue, 0) > 0 then ((s.revenue - s.total_cost) / s.revenue) * 100 else 0 end as margin
   from public.products p
-  left join public.sales s
+  left join s_base s
     on s.product_id = p.id
-   and s."date"::date between p_from and p_to
   where p.user_id = public.api_resolve_user(p_api_key)
-  group by p.id, p.name, p.barcode
   order by revenue desc;
 $$;
 

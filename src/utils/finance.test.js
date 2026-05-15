@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyRatio, computeDiscountRatio } from './finance';
+import { allocateProportionalTotals, applyRatio, computeDiscountRatio } from './finance';
 
 describe('finance', () => {
   it('computeDiscountRatio returns 1 for invalid subtotal', () => {
@@ -17,5 +17,17 @@ describe('finance', () => {
     expect(applyRatio(10, 0.3333)).toBe(3.33);
     expect(applyRatio(10, 0.335)).toBe(3.35);
   });
-});
 
+  it('allocateProportionalTotals splits totals without negative remainder', () => {
+    const out = allocateProportionalTotals([10, 10, 10], 29.99);
+    const sumCents = out.reduce((a, b) => a + Math.round(Number(b || 0) * 100), 0);
+    expect(sumCents).toBe(2999);
+    expect(out.every(v => v >= 0)).toBe(true);
+  });
+
+  it('allocateProportionalTotals handles edge cases', () => {
+    expect(allocateProportionalTotals([], 10)).toEqual([]);
+    expect(allocateProportionalTotals([10, 10], 0)).toEqual([0, 0]);
+    expect(allocateProportionalTotals([0, 0], 10)).toEqual([0, 0]);
+  });
+});

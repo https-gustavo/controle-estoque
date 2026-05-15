@@ -1,5 +1,5 @@
 import { demoGetExpenses, demoGetProducts, demoGetSales, demoId, demoSetExpenses, demoSetProducts, demoSetSales } from './demoStore';
-import { applyRatio, computeDiscountRatio } from '../utils/finance';
+import { allocateProportionalTotals } from '../utils/finance';
 
 export const demoApi = {
   listProducts() {
@@ -49,16 +49,18 @@ export const demoApi = {
     const now = new Date().toISOString();
     const rows = [];
     const sales = demoGetSales();
-    let subtotal = 0;
-    items.forEach(it => { subtotal += Number(it.unit_price || 0) * Number(it.quantity || 1); });
+    const itemSubtotals = items.map((it) => Number(it.unit_price || 0) * Number(it.quantity || 1));
+    const subtotal = itemSubtotals.reduce((a, b) => a + Number(b || 0), 0);
     const total = Math.max(0, subtotal - Number(discountValue || 0));
-    const ratio = computeDiscountRatio(subtotal, total);
-    items.forEach(it => {
+    const allocated = allocateProportionalTotals(itemSubtotals, total);
+
+    items.forEach((it, idx) => {
       const qty = Number(it.quantity || 1);
-      const revenue = applyRatio((Number(it.unit_price || 0) * qty), ratio);
+      const unit = Number(it.unit_price || 0);
+      const revenue = Number(allocated[idx] || 0);
       const p = byBarcode.get(String(it.barcode || '')) || products.find(pr => String(pr.id) === String(it.id));
       const costUnit = Number(p?.cost_price || 0);
-      const costTotal = costUnit * qty;
+      const costTotal = Number((costUnit * qty).toFixed(2));
       rows.push({
         id: demoId('s'),
         user_id: 'demo',
@@ -66,10 +68,10 @@ export const demoApi = {
         product_name: it.name,
         barcode: it.barcode || p?.barcode || null,
         quantity: qty,
-        unit_price: Number(it.unit_price || 0),
+        unit_price: unit,
         total_price: revenue,
         cost_total: costTotal,
-        profit: revenue - costTotal,
+        profit: Number((revenue - costTotal).toFixed(2)),
         sale_date: now,
         created_at: now
       });
